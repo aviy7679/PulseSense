@@ -584,3 +584,492 @@
 //   }
 //   Serial.println("------------------------");
 // }
+
+
+//דופק מזהה מגע - אני לא יודעת מה בקשר לדופק עצמו
+// #include <Wire.h>
+
+// #define MAX30105_ADDRESS 0x57
+
+// // הגדרות שנוכל לשנות
+// uint8_t ledPower = 0x1F;  // עוצמת LEDs (0x00-0x3F)
+// uint8_t sampleRate = 0x27; // מהירות דגימה
+
+// void setup() {
+//   Serial.begin(115200);
+//   delay(2000);
+  
+//   Serial.println("🔧 MAX30102 - Debug וכיוון");
+//   Serial.println("============================");
+  
+//   Wire.begin(21, 22);
+  
+//   initSensor();
+  
+//   Serial.println("📋 פקודות:");
+//   Serial.println("+ = הגבר עוצמת LEDs");
+//   Serial.println("- = הקטן עוצמת LEDs"); 
+//   Serial.println("r = איפוס הגדרות");
+//   Serial.println("c = מצב כיוון");
+//   Serial.println();
+// }
+
+// void loop() {
+//   // בדיקת פקודות מהמשתמש
+//   if (Serial.available()) {
+//     char cmd = Serial.read();
+//     handleCommand(cmd);
+//     return;
+//   }
+  
+//   // קריאת נתונים
+//   uint32_t red, ir;
+//   if (readSensorData(&red, &ir)) {
+    
+//     // הדפסה עם גרף פשוט
+//     Serial.print("🔴 IR: ");
+//     Serial.print(ir);
+//     Serial.print(" | ❤️ Red: ");
+//     Serial.print(red);
+    
+//     // גרף פשוט
+//     Serial.print(" | ");
+//     printBar(ir, 100000);
+    
+//     // זיהוי מגע דינמי
+//     static uint32_t baseline = 1000;
+//     static int readingCount = 0;
+    
+//     // עדכון baseline (רק כשאין מגע)
+//     if (ir < baseline * 1.5) {
+//       baseline = (baseline * 9 + ir) / 10; // ממוצע נע
+//     }
+    
+//     uint32_t threshold = baseline * 2; // סף דינמי
+    
+//     if (ir > threshold && ir > 5000) {
+//       Serial.print(" 🤚 מגע!");
+      
+//       // ספירת דופק פשוט
+//       static uint32_t lastIR = 0;
+//       static unsigned long lastBeat = 0;
+//       static int beatCount = 0;
+      
+//       if (ir > lastIR + (ir * 0.1)) { // עלייה של 10%
+//         unsigned long now = millis();
+//         if (now - lastBeat > 400 && now - lastBeat < 2000) { // 30-150 BPM
+//           beatCount++;
+//           if (beatCount >= 3) { // לפחות 3 דפיקות לחישוב
+//             int bpm = 60000 / (now - lastBeat);
+//             Serial.print(" 💓 ");
+//             Serial.print(bpm);
+//             Serial.print(" BPM");
+//           }
+//           lastBeat = now;
+//         }
+//       }
+//       lastIR = ir;
+      
+//     } else {
+//       Serial.print(" ✋ אין מגע");
+//     }
+    
+//     // הצגת baseline וסף
+//     Serial.print(" (סף: ");
+//     Serial.print(threshold);
+//     Serial.print(", baseline: ");
+//     Serial.print(baseline);
+//     Serial.println(")");
+    
+//     readingCount++;
+    
+//     // כל 50 מדידות - הצגת סטטיסטיקות
+//     if (readingCount % 50 == 0) {
+//       Serial.println("📊 טיפים:");
+//       if (ir < 5000) {
+//         Serial.println("   💡 ערכים נמוכים - נסי '+' להגברת LEDs");
+//       }
+//       if (ir > 200000) {
+//         Serial.println("   💡 ערכים גבוהים - נסי '-' להקטנת LEDs");
+//       }
+//       Serial.println();
+//     }
+    
+//   } else {
+//     Serial.println("❌ שגיאה בקריאה");
+//   }
+  
+//   delay(100);
+// }
+
+// void handleCommand(char cmd) {
+//   switch(cmd) {
+//     case '+':
+//       if (ledPower < 0x3F) {
+//         ledPower += 0x05;
+//         updateLEDPower();
+//         Serial.print("💡 עוצמת LEDs: 0x");
+//         Serial.println(ledPower, HEX);
+//       }
+//       break;
+      
+//     case '-':
+//       if (ledPower > 0x05) {
+//         ledPower -= 0x05;
+//         updateLEDPower();
+//         Serial.print("💡 עוצמת LEDs: 0x");
+//         Serial.println(ledPower, HEX);
+//       }
+//       break;
+      
+//     case 'r':
+//       Serial.println("🔄 איפוס הגדרות...");
+//       ledPower = 0x1F;
+//       initSensor();
+//       break;
+      
+//     case 'c':
+//       calibrationMode();
+//       break;
+//   }
+// }
+
+// void calibrationMode() {
+//   Serial.println("🎯 מצב כיוון:");
+//   Serial.println("1. הרם את האצבע מהחיישן");
+//   Serial.println("2. לחץ Enter כשמוכן");
+  
+//   while (!Serial.available()) delay(100);
+//   Serial.readString();
+  
+//   // מדידת baseline
+//   Serial.println("📊 מודד baseline (ללא מגע)...");
+//   uint32_t baselineSum = 0;
+//   int validReadings = 0;
+  
+//   for (int i = 0; i < 20; i++) {
+//     uint32_t red, ir;
+//     if (readSensorData(&red, &ir)) {
+//       baselineSum += ir;
+//       validReadings++;
+//       Serial.print(".");
+//     }
+//     delay(100);
+//   }
+  
+//   if (validReadings > 0) {
+//     uint32_t baseline = baselineSum / validReadings;
+//     Serial.println();
+//     Serial.print("📊 Baseline: ");
+//     Serial.println(baseline);
+    
+//     Serial.println("3. עכשיו הנח אצבע על החיישן ולחץ Enter");
+//     while (!Serial.available()) delay(100);
+//     Serial.readString();
+    
+//     // מדידת אצבע
+//     Serial.println("📊 מודד עם אצבע...");
+//     uint32_t fingerSum = 0;
+//     validReadings = 0;
+    
+//     for (int i = 0; i < 20; i++) {
+//       uint32_t red, ir;
+//       if (readSensorData(&red, &ir)) {
+//         fingerSum += ir;
+//         validReadings++;
+//         Serial.print(".");
+//       }
+//       delay(100);
+//     }
+    
+//     if (validReadings > 0) {
+//       uint32_t finger = fingerSum / validReadings;
+//       Serial.println();
+//       Serial.print("📊 עם אצבע: ");
+//       Serial.println(finger);
+      
+//       float ratio = (float)finger / baseline;
+//       Serial.print("📊 יחס: ");
+//       Serial.println(ratio, 2);
+      
+//       if (ratio > 2.0) {
+//         Serial.println("✅ הכיוון טוב!");
+//       } else if (ratio > 1.5) {
+//         Serial.println("⚠️ נסי להגביר LEDs (+)");
+//       } else {
+//         Serial.println("❌ צריך להגביר LEDs משמעותית");
+//       }
+//     }
+//   }
+  
+//   Serial.println("🏁 סיום כיוון\n");
+// }
+
+// bool readSensorData(uint32_t *red, uint32_t *ir) {
+//   Wire.beginTransmission(MAX30105_ADDRESS);
+//   Wire.write(0x07);
+  
+//   if (Wire.endTransmission(false) != 0) return false;
+  
+//   if (Wire.requestFrom(MAX30105_ADDRESS, 6) < 6) return false;
+  
+//   *red = 0;
+//   *red |= (uint32_t)Wire.read() << 16;
+//   *red |= (uint32_t)Wire.read() << 8;
+//   *red |= Wire.read();
+//   *red &= 0x3FFFF;
+  
+//   *ir = 0;
+//   *ir |= (uint32_t)Wire.read() << 16;
+//   *ir |= (uint32_t)Wire.read() << 8;
+//   *ir |= Wire.read();
+//   *ir &= 0x3FFFF;
+  
+//   return true;
+// }
+
+// void initSensor() {
+//   writeRegister(0x09, 0x40); // Reset
+//   delay(100);
+//   writeRegister(0x09, 0x03); // HR + SpO2
+//   writeRegister(0x0A, sampleRate);
+//   updateLEDPower();
+  
+//   Serial.print("✅ חיישן אותחל | עוצמת LEDs: 0x");
+//   Serial.println(ledPower, HEX);
+// }
+
+// void updateLEDPower() {
+//   writeRegister(0x0C, ledPower); // Red LED
+//   writeRegister(0x0D, ledPower); // IR LED
+// }
+
+// void writeRegister(byte reg, byte value) {
+//   Wire.beginTransmission(MAX30105_ADDRESS);
+//   Wire.write(reg);
+//   Wire.write(value);
+//   Wire.endTransmission();
+// }
+
+// void printBar(uint32_t value, uint32_t maxVal) {
+//   int bars = (value * 20) / maxVal;
+//   if (bars > 20) bars = 20;
+  
+//   for (int i = 0; i < bars; i++) {
+//     Serial.print("█");
+//   }
+//   for (int i = bars; i < 20; i++) {
+//     Serial.print("░");
+//   }
+// }
+
+
+
+#include <Wire.h>
+
+#define MAX30105_ADDRESS 0x57
+
+// משתנים פשוטים
+uint8_t ledPower = 0x1F;
+uint32_t lastIR = 0, lastRed = 0;
+bool dataChanging = false;
+int unchangedCount = 0;
+
+void setup() {
+  Serial.begin(115200);
+  delay(2000);
+  
+  Serial.println("💓 MAX30102 - גישה פשוטה");
+  Serial.println("==========================");
+  
+  Wire.begin(21, 22);
+  
+  // איפוס ואתחול פשוט
+  Serial.println("🔧 מאתחל...");
+  
+  writeRegister(0x09, 0x40); // Reset
+  delay(200);
+  writeRegister(0x09, 0x03); // HR + SpO2 mode
+  writeRegister(0x0A, 0x27); // Settings
+  writeRegister(0x0C, ledPower); // Red LED
+  writeRegister(0x0D, ledPower); // IR LED
+  
+  Serial.println("✅ מוכן!");
+  Serial.println("📊 צפי בנתונים:");
+  Serial.println("   ערכים נמוכים (מתחת ל-30000) = אין מגע");
+  Serial.println("   ערכים גבוהים (מעל 50000) = יש מגע");
+  Serial.println();
+  Serial.println("📋 פקודות: + הגבר | - הקטן | r איפוס");
+  Serial.println();
+}
+
+void loop() {
+  // בדיקת פקודות
+  if (Serial.available()) {
+    char cmd = Serial.read();
+    if (cmd == '+' && ledPower < 0x3F) {
+      ledPower += 0x08;
+      updateLEDs();
+      Serial.print("💡 עוצמה: 0x");
+      Serial.println(ledPower, HEX);
+    }
+    else if (cmd == '-' && ledPower > 0x08) {
+      ledPower -= 0x08;
+      updateLEDs();
+      Serial.print("💡 עוצמה: 0x");
+      Serial.println(ledPower, HEX);
+    }
+    else if (cmd == 'r') {
+      Serial.println("🔄 איפוס...");
+      resetSensor();
+    }
+    return;
+  }
+  
+  // קריאת נתונים פשוטה
+  uint32_t red, ir;
+  if (readData(&red, &ir)) {
+    
+    // בדיקה אם הנתונים משתנים
+    if (ir == lastIR && red == lastRed) {
+      unchangedCount++;
+    } else {
+      unchangedCount = 0;
+      dataChanging = true;
+    }
+    
+    // הצגת נתונים
+    Serial.print("IR: ");
+    Serial.print(ir);
+    Serial.print(" | Red: ");
+    Serial.print(red);
+    
+    // בדיקה אם הנתונים תקועים
+    if (unchangedCount > 10) {
+      Serial.print(" | ⚠️ נתונים תקועים!");
+      if (unchangedCount > 20) {
+        Serial.println(" - עושה איפוס...");
+        resetSensor();
+        return;
+      }
+    } else {
+      Serial.print(" | ✅ משתנה");
+    }
+    
+    // זיהוי מגע פשוט
+    Serial.print(" | ");
+    if (ir > 50000) {
+      Serial.print("🤚 מגע חזק");
+    } else if (ir > 30000) {
+      Serial.print("👆 מגע קל");
+    } else if (ir > 15000) {
+      Serial.print("🤏 מגע חלש");
+    } else {
+      Serial.print("✋ אין מגע");
+    }
+    
+    // זיהוי דופק פשוט מאוד
+    static uint32_t lastValue = 0;
+    static unsigned long lastTime = 0;
+    
+    if (ir > 40000 && ir > lastValue + 5000) { // עלייה משמעותי
+      unsigned long now = millis();
+      if (now - lastTime > 400 && now - lastTime < 1500) {
+        int bpm = 60000 / (now - lastTime);
+        if (bpm > 50 && bpm < 150) {
+          Serial.print(" | 💓 ");
+          Serial.print(bpm);
+          Serial.print(" BPM");
+        }
+      }
+      lastTime = now;
+    }
+    lastValue = ir;
+    
+    Serial.println();
+    
+    // שמירת ערכים קודמים
+    lastIR = ir;
+    lastRed = red;
+    
+  } else {
+    Serial.println("❌ שגיאה בקריאה");
+    unchangedCount++;
+    
+    if (unchangedCount > 30) {
+      Serial.println("🔄 איפוס בגלל שגיאות...");
+      resetSensor();
+    }
+  }
+  
+  delay(200); // 5 מדידות לשנייה
+}
+
+bool readData(uint32_t *red, uint32_t *ir) {
+  // קריאה ישירה וברורה
+  Wire.beginTransmission(MAX30105_ADDRESS);
+  Wire.write(0x07); // FIFO Data
+  
+  if (Wire.endTransmission(false) != 0) {
+    return false;
+  }
+  
+  int received = Wire.requestFrom(MAX30105_ADDRESS, 6);
+  if (received < 6) {
+    return false;
+  }
+  
+  // קריאת Red (3 bytes ראשונים)
+  *red = 0;
+  *red |= (uint32_t)Wire.read() << 16;
+  *red |= (uint32_t)Wire.read() << 8;
+  *red |= Wire.read();
+  *red &= 0x3FFFF; // 18 bit mask
+  
+  // קריאת IR (3 bytes אחרונים)
+  *ir = 0;
+  *ir |= (uint32_t)Wire.read() << 16;
+  *ir |= (uint32_t)Wire.read() << 8;
+  *ir |= Wire.read();
+  *ir &= 0x3FFFF; // 18 bit mask
+  
+  return true;
+}
+
+void resetSensor() {
+  Serial.println("   🔄 מאפס החיישן...");
+  
+  // איפוס I2C
+  Wire.end();
+  delay(100);
+  Wire.begin(21, 22);
+  delay(100);
+  
+  // איפוס החיישן
+  writeRegister(0x09, 0x40); // Reset bit
+  delay(200);
+  
+  // הגדרות מחדש
+  writeRegister(0x09, 0x03); // Mode
+  writeRegister(0x0A, 0x27); // Settings
+  updateLEDs();
+  
+  // איפוס משתנים
+  lastIR = 0;
+  lastRed = 0;
+  unchangedCount = 0;
+  
+  Serial.println("   ✅ איפוס הושלם");
+}
+
+void updateLEDs() {
+  writeRegister(0x0C, ledPower); // Red LED
+  writeRegister(0x0D, ledPower); // IR LED
+}
+
+void writeRegister(byte reg, byte value) {
+  Wire.beginTransmission(MAX30105_ADDRESS);
+  Wire.write(reg);
+  Wire.write(value);
+  Wire.endTransmission();
+}
