@@ -91,14 +91,20 @@ void BLEHandler::update() {
   deviceConnected = (pServer->getConnectedCount() > 0);
 }
 
-void BLEHandler::sendData(float motion, int pulse, String status) {
+void BLEHandler::sendData(float motion, int pulse, String status, float temperature) {
   if (!isConnected()) return;
   
-  // יצירת JSON פשוט
+  // יצירת JSON עם טמפרטורה
   String message = "{";
   message += "\"motion\":" + String(motion, 1) + ",";
   message += "\"pulse\":" + String(pulse) + ",";
   message += "\"status\":\"" + status + "\",";
+  
+  if (temperature != -999) {
+    message += "\"temperature\":" + String(temperature, 1) + ",";
+    message += "\"temp_status\":\"" + String(temperature >= 35.0 && temperature <= 42.0 ? "גוף" : "סביבה") + "\",";  
+  }
+  
   message += "\"time\":" + String(millis());
   message += "}";
   

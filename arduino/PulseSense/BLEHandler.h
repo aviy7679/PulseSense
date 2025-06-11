@@ -11,7 +11,7 @@ class BLEHandler {
   public:
     BLEHandler();
     bool begin();
-    void sendData(float motion, int pulse, String status);
+    void sendData(float motion, int pulse, String status, float temperature = -999);
     void sendAlert(String message);
     bool isConnected();
     String getCommand();

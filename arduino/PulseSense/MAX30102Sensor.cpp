@@ -4,29 +4,43 @@ MAX30102Sensor::MAX30102Sensor() {
   ledPower = 0x1F;
   lastIR = 0;
   lastRed = 0;
+  dataChanging = false;
   unchangedCount = 0;
   lastPulseValue = 0;
   lastPulseTime = 0;
+  lastBPM = 0;
 }
 
 bool MAX30102Sensor::begin(int sda, int scl) {
-  Wire.begin(sda, scl);
-  delay(100);
+  Serial.println("💓 MAX30102 - מאתחל...");
   
-  // בדיקת חיבור
+  // לא מאתחלים I2C - כבר מאותחל על ידי חיישנים אחרים!
+  
+  // בדיקה שהחיישן מגיב
   Wire.beginTransmission(MAX30105_ADDRESS);
   if (Wire.endTransmission() != 0) {
+    Serial.println("❌ שגיאה: החיישן לא מגיב בכתובת 0x57!");
     return false;
   }
   
-  // איפוס ואתחול
-  initializeSettings();
+  // איפוס ואתחול פשוט - בדיוק כמו בקוד שעבד
+  Serial.println("🔧 מאתחל...");
+  
+  writeRegister(0x09, 0x40); // Reset
+  delay(200);
+  writeRegister(0x09, 0x03); // HR + SpO2 mode
+  writeRegister(0x0A, 0x27); // Settings
+  writeRegister(0x0C, ledPower); // Red LED
+  writeRegister(0x0D, ledPower); // IR LED
+  
+  Serial.println("✅ מוכן!");
   return true;
 }
 
 bool MAX30102Sensor::readData(uint32_t *red, uint32_t *ir) {
+  // קריאה ישירה וברורה - בדיוק כמו בקוד הפשוט שעבד
   Wire.beginTransmission(MAX30105_ADDRESS);
-  Wire.write(0x07); // FIFO Data register
+  Wire.write(0x07); // FIFO Data
   
   if (Wire.endTransmission(false) != 0) {
     return false;
@@ -50,12 +64,13 @@ bool MAX30102Sensor::readData(uint32_t *red, uint32_t *ir) {
   *ir |= (uint32_t)Wire.read() << 8;
   *ir |= Wire.read();
   *ir &= 0x3FFFF; // 18 bit mask
-  
-  // בדיקה אם הנתונים משתנים
+
+  // בדיקה אם הנתונים משתנים - בדיוק כמו בקוד הפשוט
   if (*ir == lastIR && *red == lastRed) {
     unchangedCount++;
   } else {
     unchangedCount = 0;
+    dataChanging = true;
   }
   
   lastIR = *ir;
@@ -64,63 +79,18 @@ bool MAX30102Sensor::readData(uint32_t *red, uint32_t *ir) {
   return true;
 }
 
-String MAX30102Sensor::getTouchStatus(uint32_t ir) {
-  if (ir > 50000) {
-    return "מגע חזק";
-  } else if (ir > 30000) {
-    return "מגע קל";
-  } else if (ir > 15000) {
-    return "מגע חלש";
-  } else {
-    return "אין מגע";
-  }
-}
-
-int MAX30102Sensor::calculateBPM(uint32_t ir) {
-  // זיהוי דופק פשוט
-  if (ir > 40000 && ir > lastPulseValue + 5000) { // עלייה משמעותית
-    unsigned long now = millis();
-    if (now - lastPulseTime > 400 && now - lastPulseTime < 1500) {
-      int bpm = 60000 / (now - lastPulseTime);
-      if (bpm > 50 && bpm < 150) {
-        lastPulseTime = now;
-        lastPulseValue = ir;
-        return bpm;
-      }
-    }
-    lastPulseTime = now;
-  }
-  lastPulseValue = ir;
-  return 0; // אין דופק מזוהה
-}
-
-void MAX30102Sensor::increasePower() {
-  if (ledPower < 0x3F) {
-    ledPower += 0x08;
-    updateLEDs();
-  }
-}
-
-void MAX30102Sensor::decreasePower() {
-  if (ledPower > 0x08) {
-    ledPower -= 0x08;
-    updateLEDs();
-  }
-}
-
 void MAX30102Sensor::resetSensor() {
-  // איפוס I2C
-  Wire.end();
-  delay(100);
-  Wire.begin(21, 22);
-  delay(100);
+  Serial.println("🔄 איפוס...");
   
-  // איפוס החיישן
-  writeRegister(0x09, 0x40); // Reset bit
+  // לא מאפסים I2C - רק את החיישן עצמו
+  
+  // בדיוק כמו בקוד הפשוט שעבד
+  writeRegister(0x09, 0x40); // Reset
   delay(200);
-  
-  // הגדרות מחדש
-  initializeSettings();
+  writeRegister(0x09, 0x03); // HR + SpO2 mode
+  writeRegister(0x0A, 0x27); // Settings
+  writeRegister(0x0C, ledPower); // Red LED
+  writeRegister(0x0D, ledPower); // IR LED
   
   // איפוס משתנים
   lastIR = 0;
@@ -128,21 +98,27 @@ void MAX30102Sensor::resetSensor() {
   unchangedCount = 0;
   lastPulseValue = 0;
   lastPulseTime = 0;
+  lastBPM = 0;
+  
+  Serial.println("✅ איפוס הושלם");
 }
 
-uint8_t MAX30102Sensor::getCurrentPower() {
-  return ledPower;
+void MAX30102Sensor::increaseLEDPower() {
+  if (ledPower < MAX_LED_POWER) {
+    ledPower += LED_POWER_STEP;
+    updateLEDs();
+    Serial.print("💡 עוצמה: 0x");
+    Serial.println(ledPower, HEX);
+  }
 }
 
-bool MAX30102Sensor::isDataStable() {
-  return unchangedCount <= 10;
-}
-
-void MAX30102Sensor::writeRegister(uint8_t reg, uint8_t value) {
-  Wire.beginTransmission(MAX30105_ADDRESS);
-  Wire.write(reg);
-  Wire.write(value);
-  Wire.endTransmission();
+void MAX30102Sensor::decreaseLEDPower() {
+  if (ledPower > MIN_LED_POWER) {
+    ledPower -= LED_POWER_STEP;
+    updateLEDs();
+    Serial.print("💡 עוצמה: 0x");
+    Serial.println(ledPower, HEX);
+  }
 }
 
 void MAX30102Sensor::updateLEDs() {
@@ -150,10 +126,81 @@ void MAX30102Sensor::updateLEDs() {
   writeRegister(0x0D, ledPower); // IR LED
 }
 
-void MAX30102Sensor::initializeSettings() {
-  writeRegister(0x09, 0x40); // Reset
-  delay(200);
-  writeRegister(0x09, 0x03); // HR + SpO2 mode
-  writeRegister(0x0A, 0x27); // Settings
-  updateLEDs();
+uint8_t MAX30102Sensor::getLEDPower() {
+  return ledPower;
+}
+
+bool MAX30102Sensor::isTouch() {
+  return lastIR > 15000;
+}
+
+bool MAX30102Sensor::isStrongTouch() {
+  return lastIR > 50000;
+}
+
+int MAX30102Sensor::calculateBPM(uint32_t irValue) {
+  // זיהוי דופק פשוט מאוד - בדיוק כמו בקוד שעבד
+  static uint32_t lastValue = 0;
+  static unsigned long lastTime = 0;
+  
+  if (irValue > 40000 && irValue > lastValue + 5000) { // עלייה משמעותית
+    unsigned long now = millis();
+    if (now - lastTime > 400 && now - lastTime < 1500) {
+      int bpm = 60000 / (now - lastTime);
+      if (bpm > 50 && bpm < 150) {
+        lastBPM = bpm;
+        lastTime = now;
+        return bpm;
+      }
+    }
+    lastTime = now;
+  }
+  lastValue = irValue;
+  
+  return lastBPM; // מחזיר את הדופק האחרון הידוע
+}
+
+bool MAX30102Sensor::dataIsChanging() {
+  return unchangedCount < 10;
+}
+
+void MAX30102Sensor::processSerialCommands() {
+  if (Serial.available()) {
+    char cmd = Serial.read();
+    
+    switch(cmd) {
+      case '+':
+        increaseLEDPower();
+        break;
+        
+      case '-':
+        decreaseLEDPower();
+        break;
+        
+      case 'r':
+      case 'R':
+        resetSensor();
+        break;
+        
+      case 'h':
+      case 'H':
+        Serial.println("📋 פקודות זמינות:");
+        Serial.println("  + = הגבר עוצמת LED");
+        Serial.println("  - = הקטן עוצמת LED");
+        Serial.println("  r = איפוס חיישן");
+        Serial.println("  h = עזרה");
+        break;
+        
+      default:
+        Serial.println("❓ פקודה לא מוכרת. לחץ 'h' לעזרה.");
+        break;
+    }
+  }
+}
+
+void MAX30102Sensor::writeRegister(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(MAX30105_ADDRESS);
+  Wire.write(reg);
+  Wire.write(value);
+  Wire.endTransmission();
 }

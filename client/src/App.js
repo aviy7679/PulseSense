@@ -1,9 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { Bluetooth, Heart, Activity, Wifi, WifiOff } from 'lucide-react';
+import { Bluetooth, Heart, Activity, Wifi, WifiOff, Thermometer } from 'lucide-react';
 
 const SimplePulseSenseApp = () => {
   const [connected, setConnected] = useState(false);
-  const [data, setData] = useState({ motion: 0, pulse: 0, status: 'אין מגע' });
+  const [data, setData] = useState({
+    motion: 0,
+    pulse: 0,
+    status: 'אין מגע',
+    temperature: null,
+    temp_status: 'לא זמין'
+  });
   const [alerts, setAlerts] = useState([]);
   const [connecting, setConnecting] = useState(false);
 
@@ -100,11 +106,13 @@ const SimplePulseSenseApp = () => {
         setAlerts(prev => [newAlert, ...prev.slice(0, 4)]);
         console.log('🚨 התראה:', jsonData.message);
       } else {
-        // נתונים רגילים
+        // נתונים רגילים עם טמפרטורה
         setData({
           motion: jsonData.motion || 0,
           pulse: jsonData.pulse || 0,
           status: jsonData.status || 'לא זמין',
+          temperature: jsonData.temperature || null,
+          temp_status: jsonData.temp_status || 'לא זמין',
           time: jsonData.time || Date.now()
         });
       }
@@ -214,7 +222,7 @@ const SimplePulseSenseApp = () => {
 
           {/* נתוני חיישנים */}
           {connected && (
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid md:grid-cols-3 gap-6">
 
                 {/* תנועה */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
@@ -267,6 +275,34 @@ const SimplePulseSenseApp = () => {
                       </div>
                   )}
                 </div>
+
+                {/* טמפרטורה */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Thermometer className="text-orange-500" size={28} />
+                    <h2 className="text-xl font-bold text-gray-800">טמפרטורה</h2>
+                  </div>
+
+                  <div className="mb-3">
+                <span className="text-3xl font-bold text-orange-600">
+                  {data.temperature ? data.temperature.toFixed(1) : '--'}
+                </span>
+                    <span className="text-gray-500 text-sm mr-2">°C</span>
+                  </div>
+
+                  <div className="text-gray-600 text-sm">
+                    <strong>סוג:</strong> {data.temp_status}
+                  </div>
+
+                  {data.temperature && data.temperature > 37.2 && (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                          <span className="text-sm text-red-600">טמפרטורה גבוהה</span>
+                        </div>
+                      </div>
+                  )}
+                </div>
               </div>
           )}
 
@@ -308,6 +344,30 @@ const SimplePulseSenseApp = () => {
                       className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
                   >
                     🏓 בדיקת חיבור
+                  </button>
+                  <button
+                      onClick={() => sendCommand('1')}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                  >
+                    🏃 תנועה
+                  </button>
+                  <button
+                      onClick={() => sendCommand('2')}
+                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                  >
+                    💓 דופק
+                  </button>
+                  <button
+                      onClick={() => sendCommand('3')}
+                      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                  >
+                    🌡️ טמפרטורה
+                  </button>
+                  <button
+                      onClick={() => sendCommand('4')}
+                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                  >
+                    🔄 משולב
                   </button>
                   <button
                       onClick={() => {

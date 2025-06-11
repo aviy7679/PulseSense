@@ -9,32 +9,35 @@ class MAX30102Sensor {
     MAX30102Sensor();
     bool begin(int sda = 21, int scl = 22);
     bool readData(uint32_t *red, uint32_t *ir);
-    void increasePower();
-    void decreasePower();
     void resetSensor();
-    
-    // זיהוי מגע ודופק
-    String getTouchStatus(uint32_t ir);
-    int calculateBPM(uint32_t ir);
-    
-    // פונקציות עזר
-    uint8_t getCurrentPower();
-    bool isDataStable();
+    void increaseLEDPower();
+    void decreaseLEDPower();
+    void updateLEDs();
+    uint8_t getLEDPower();
+    bool isTouch();
+    bool isStrongTouch();
+    int calculateBPM(uint32_t irValue);
+    bool dataIsChanging();
+    void processSerialCommands();
     
   private:
+    void writeRegister(uint8_t reg, uint8_t value);
+    
+    // קבועים
     static const uint8_t MAX30105_ADDRESS = 0x57;
+    static const uint8_t MIN_LED_POWER = 0x08;
+    static const uint8_t MAX_LED_POWER = 0x3F;
+    static const uint8_t LED_POWER_STEP = 0x08;
     
+    // משתנים פרטיים
     uint8_t ledPower;
-    uint32_t lastIR, lastRed;
+    uint32_t lastIR;
+    uint32_t lastRed;
+    bool dataChanging;
     int unchangedCount;
-    
-    // למדידת דופק
     uint32_t lastPulseValue;
     unsigned long lastPulseTime;
-    
-    void writeRegister(uint8_t reg, uint8_t value);
-    void updateLEDs();
-    void initializeSettings();
+    int lastBPM;
 };
 
 #endif
