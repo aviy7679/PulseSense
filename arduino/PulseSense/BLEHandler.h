@@ -15,7 +15,7 @@ class BLEHandler {
     void sendAlert(String message);
     bool isConnected();
     String getCommand();
-    void update();  // חדש - לבדיקת מצב חיבור
+    void update();  
     
   private:
     BLEServer* pServer;

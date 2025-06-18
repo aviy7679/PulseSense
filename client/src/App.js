@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Bluetooth, Heart, Activity, Wifi, WifiOff, Thermometer } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Bluetooth, Heart, Activity, Wifi, WifiOff, Thermometer, Zap, Loader } from 'lucide-react';
 
 const SimplePulseSenseApp = () => {
   const [connected, setConnected] = useState(false);
@@ -12,10 +12,231 @@ const SimplePulseSenseApp = () => {
   });
   const [alerts, setAlerts] = useState([]);
   const [connecting, setConnecting] = useState(false);
+  const [pulseAnimation, setPulseAnimation] = useState(false);
 
   const deviceRef = useRef(null);
   const dataCharacteristicRef = useRef(null);
   const commandCharacteristicRef = useRef(null);
+
+  // Styles
+  const styles = {
+    container: {
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 25%, #6366f1 100%)',
+      position: 'relative',
+      overflow: 'hidden',
+      direction: 'rtl',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    },
+    backgroundPattern: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundImage: 'radial-gradient(circle at 25px 25px, rgba(255,255,255,0.1) 2px, transparent 0)',
+      backgroundSize: '50px 50px',
+      opacity: 0.5
+    },
+    content: {
+      position: 'relative',
+      zIndex: 10,
+      maxWidth: '1200px',
+      margin: '0 auto',
+      padding: '24px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '32px'
+    },
+    header: {
+      textAlign: 'center',
+      padding: '32px 0'
+    },
+    title: {
+      fontSize: '3rem',
+      fontWeight: 'bold',
+      color: 'white',
+      marginBottom: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '16px'
+    },
+    subtitle: {
+      color: 'rgba(255, 255, 255, 0.8)',
+      fontSize: '1.125rem',
+      margin: 0
+    },
+    panel: {
+      background: 'rgba(255, 255, 255, 0.2)',
+      backdropFilter: 'blur(16px)',
+      borderRadius: '24px',
+      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+      padding: '32px',
+      border: '1px solid rgba(255, 255, 255, 0.3)'
+    },
+    connectionPanel: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: '20px'
+    },
+    connectionInfo: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '16px'
+    },
+    statusIcon: {
+      padding: '12px',
+      borderRadius: '50%',
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+      transition: 'all 0.5s ease'
+    },
+    statusIconConnected: {
+      background: '#10b981'
+    },
+    statusIconDisconnected: {
+      background: '#ef4444'
+    },
+    statusText: {
+      color: 'white'
+    },
+    statusTitle: {
+      fontSize: '1.5rem',
+      fontWeight: 'bold',
+      margin: '0 0 4px 0'
+    },
+    statusSubtitle: {
+      color: 'rgba(255, 255, 255, 0.7)',
+      margin: 0
+    },
+    button: {
+      background: 'linear-gradient(to right, #3b82f6, #2563eb)',
+      color: 'white',
+      padding: '16px 32px',
+      borderRadius: '16px',
+      border: 'none',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      transition: 'all 0.3s ease',
+      cursor: 'pointer',
+      fontSize: '1rem',
+      fontWeight: '500'
+    },
+    buttonHover: {
+      transform: 'scale(1.05)',
+      boxShadow: '0 20px 40px -10px rgba(59, 130, 246, 0.4)'
+    },
+    disconnectButton: {
+      background: 'linear-gradient(to right, #ef4444, #dc2626)',
+      padding: '12px 24px'
+    },
+    sensorsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+      gap: '32px'
+    },
+    sensorCard: {
+      background: 'rgba(255, 255, 255, 0.8)',
+      backdropFilter: 'blur(4px)',
+      borderRadius: '16px',
+      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+      padding: '24px',
+      transition: 'all 0.5s ease',
+      border: '1px solid rgba(255, 255, 255, 0.2)'
+    },
+    sensorHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '16px',
+      marginBottom: '16px'
+    },
+    sensorIcon: {
+      padding: '12px',
+      borderRadius: '50%',
+      color: 'white',
+      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)'
+    },
+    motionIcon: {
+      background: 'linear-gradient(135deg, #3b82f6, #2563eb)'
+    },
+    pulseIcon: {
+      background: 'linear-gradient(135deg, #ef4444, #dc2626)'
+    },
+    tempIcon: {
+      background: 'linear-gradient(135deg, #f97316, #ea580c)'
+    },
+    sensorTitle: {
+      fontSize: '1.25rem',
+      fontWeight: 'bold',
+      color: '#1f2937',
+      margin: 0
+    },
+    sensorValue: {
+      marginBottom: '16px',
+      display: 'flex',
+      alignItems: 'baseline',
+      gap: '8px'
+    },
+    valueNumber: {
+      fontSize: '2.5rem',
+      fontWeight: 'bold',
+      color: '#1f2937'
+    },
+    valueUnit: {
+      color: '#6b7280',
+      fontSize: '1.125rem'
+    },
+    progressBar: {
+      width: '100%',
+      background: '#e5e7eb',
+      borderRadius: '9999px',
+      height: '8px',
+      overflow: 'hidden'
+    },
+    progressFill: {
+      height: '100%',
+      background: 'linear-gradient(to right, #3b82f6, #2563eb)',
+      borderRadius: '9999px',
+      transition: 'all 1s ease-out'
+    },
+    commandsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+      gap: '16px'
+    },
+    commandButton: {
+      background: 'rgba(255, 255, 255, 0.1)',
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      color: 'white',
+      padding: '16px',
+      borderRadius: '16px',
+      transition: 'all 0.3s ease',
+      cursor: 'pointer',
+      textAlign: 'center'
+    },
+    commandIcon: {
+      fontSize: '1.5rem',
+      marginBottom: '8px'
+    },
+    commandLabel: {
+      fontSize: '0.875rem',
+      fontWeight: '500'
+    }
+  };
+
+  // אנימציה לדופק
+  useEffect(() => {
+    if (data.pulse > 0) {
+      setPulseAnimation(true);
+      const interval = setInterval(() => {
+        setPulseAnimation(prev => !prev);
+      }, 60000 / Math.max(data.pulse, 60));
+      return () => clearInterval(interval);
+    }
+  }, [data.pulse]);
 
   // בדיקה אם הדפדפן תומך ב-Bluetooth
   const isBluetoothSupported = () => {
@@ -34,7 +255,6 @@ const SimplePulseSenseApp = () => {
     try {
       console.log('מחפש מכשירים BLE...');
 
-      // בקש מכשיר BLE
       const device = await navigator.bluetooth.requestDevice({
         filters: [{
           namePrefix: 'PulseSense'
@@ -45,29 +265,23 @@ const SimplePulseSenseApp = () => {
       console.log('מתחבר ל:', device.name);
       deviceRef.current = device;
 
-      // התחבר
       const server = await device.gatt.connect();
       console.log('מחובר ל-GATT');
 
-      // קבל service
       const service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
       console.log('קיבלתי service');
 
-      // קבל characteristic לקבלת נתונים
       const dataCharacteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
       console.log('קיבלתי characteristic לנתונים');
       dataCharacteristicRef.current = dataCharacteristic;
 
-      // קבל characteristic לשליחת פקודות
       const commandCharacteristic = await service.getCharacteristic('0000ffe2-0000-1000-8000-00805f9b34fb');
       console.log('קיבלתי characteristic לפקודות');
       commandCharacteristicRef.current = commandCharacteristic;
 
-      // התחל להאזין לנתונים
       await dataCharacteristic.startNotifications();
       dataCharacteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
 
-      // האזן לניתוק
       device.addEventListener('gattserverdisconnected', handleDisconnect);
 
       setConnected(true);
@@ -97,7 +311,6 @@ const SimplePulseSenseApp = () => {
       const jsonData = JSON.parse(value);
 
       if (jsonData.type === 'alert') {
-        // התראה
         const newAlert = {
           id: Date.now(),
           message: jsonData.message,
@@ -106,7 +319,6 @@ const SimplePulseSenseApp = () => {
         setAlerts(prev => [newAlert, ...prev.slice(0, 4)]);
         console.log('🚨 התראה:', jsonData.message);
       } else {
-        // נתונים רגילים עם טמפרטורה
         setData({
           motion: jsonData.motion || 0,
           pulse: jsonData.pulse || 0,
@@ -118,7 +330,6 @@ const SimplePulseSenseApp = () => {
       }
     } catch (e) {
       console.log('📄 נתון לא-JSON:', value);
-      // נסה לפרש כנתון פשוט
       if (value.includes('motion') || value.includes('pulse')) {
         console.log('💡 זה נראה כמו נתוני חיישן');
       }
@@ -157,149 +368,209 @@ const SimplePulseSenseApp = () => {
   // בדיקת תמיכה בדפדפן
   if (!isBluetoothSupported()) {
     return (
-        <div className="min-h-screen bg-red-50 flex items-center justify-center p-6">
-          <div className="bg-white rounded-xl shadow-lg p-8 text-center max-w-md">
-            <div className="text-6xl mb-4">❌</div>
-            <h1 className="text-2xl font-bold text-red-600 mb-4">דפדפן לא נתמך</h1>
-            <p className="text-gray-700 mb-4">
-              אנא השתמש בדפדפן Chrome או Edge כדי להתחבר למכשיר
-            </p>
-            <p className="text-sm text-gray-500">
-              Safari ו-Firefox אינם תומכים ב-Web Bluetooth
-            </p>
+        <div style={styles.container}>
+          <div style={{...styles.content, justifyContent: 'center', alignItems: 'center'}}>
+            <div style={{...styles.panel, textAlign: 'center', maxWidth: '400px'}}>
+              <div style={{fontSize: '4rem', marginBottom: '24px'}}>❌</div>
+              <h1 style={{fontSize: '1.875rem', fontWeight: 'bold', color: '#dc2626', margin: '0 0 16px 0'}}>
+                דפדפן לא נתמך
+              </h1>
+              <p style={{color: '#374151', margin: '0 0 16px 0', lineHeight: '1.6'}}>
+                אנא השתמש בדפדפן Chrome או Edge כדי להתחבר למכשיר
+              </p>
+              <p style={{fontSize: '0.875rem', color: '#6b7280', margin: 0}}>
+                Safari ו-Firefox אינם תומכים ב-Web Bluetooth
+              </p>
+            </div>
           </div>
         </div>
     );
   }
 
   return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 p-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+      <div style={styles.container}>
+        <div style={styles.backgroundPattern}></div>
 
-          {/* כותרת וחיבור */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <div className="text-center mb-6">
-              <h1 className="text-3xl font-bold text-gray-800 flex items-center justify-center gap-3">
-                <Heart className="text-red-500" />
-                PulseSense
-              </h1>
-            </div>
+        <div style={styles.content}>
+          {/* כותרת ראשית */}
+          <div style={styles.header}>
+            <h1 style={styles.title}>
+              <Heart
+                  color="#f87171"
+                  size={48}
+                  style={pulseAnimation ? {animation: 'pulse 0.8s ease-in-out infinite'} : {}}
+              />
+              PulseSense
+            </h1>
+            <p style={styles.subtitle}>מערכת ניטור חיוני מתקדמת</p>
+          </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {connected ? (
-                    <>
-                      <Wifi className="text-green-500" size={20} />
-                      <span className="text-green-600 font-medium">מחובר</span>
-                    </>
-                ) : (
-                    <>
-                      <WifiOff className="text-red-500" size={20} />
-                      <span className="text-red-600 font-medium">מנותק</span>
-                    </>
-                )}
+          {/* פאנל חיבור */}
+          <div style={{...styles.panel, ...styles.connectionPanel}}>
+            <div style={styles.connectionInfo}>
+              <div style={{
+                ...styles.statusIcon,
+                ...(connected ? styles.statusIconConnected : styles.statusIconDisconnected)
+              }}>
+                {connected ? <Wifi color="white" size={24} /> : <WifiOff color="white" size={24} />}
               </div>
-
-              {!connected ? (
-                  <button
-                      onClick={connect}
-                      disabled={connecting}
-                      className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-                  >
-                    <Bluetooth size={20} />
-                    {connecting ? 'מתחבר...' : 'התחבר'}
-                  </button>
-              ) : (
-                  <button
-                      onClick={disconnect}
-                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    נתק
-                  </button>
-              )}
+              <div style={styles.statusText}>
+                <h2 style={styles.statusTitle}>
+                  {connected ? 'מחובר בהצלחה' : 'מנותק'}
+                </h2>
+                <p style={styles.statusSubtitle}>
+                  {connected ? 'קבלת נתונים בזמן אמת' : 'לחץ להתחברות למכשיר'}
+                </p>
+              </div>
             </div>
+
+            {!connected ? (
+                <button
+                    onClick={connect}
+                    disabled={connecting}
+                    style={{
+                      ...styles.button,
+                      ...(connecting ? {opacity: 0.8} : {})
+                    }}
+                    onMouseEnter={(e) => !connecting && Object.assign(e.target.style, styles.buttonHover)}
+                    onMouseLeave={(e) => !connecting && Object.assign(e.target.style, styles.button)}
+                >
+                  {connecting ? (
+                      <>
+                        <Loader style={{animation: 'spin 1s linear infinite'}} size={24} />
+                        מתחבר...
+                      </>
+                  ) : (
+                      <>
+                        <Bluetooth size={24} />
+                        התחבר למכשיר
+                      </>
+                  )}
+                </button>
+            ) : (
+                <button
+                    onClick={disconnect}
+                    style={{...styles.button, ...styles.disconnectButton}}
+                >
+                  נתק
+                </button>
+            )}
           </div>
 
           {/* נתוני חיישנים */}
           {connected && (
-              <div className="grid md:grid-cols-3 gap-6">
-
+              <div style={styles.sensorsGrid}>
                 {/* תנועה */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Activity className="text-blue-500" size={28} />
-                    <h2 className="text-xl font-bold text-gray-800">תנועה</h2>
+                <div style={styles.sensorCard}>
+                  <div style={styles.sensorHeader}>
+                    <div style={{...styles.sensorIcon, ...styles.motionIcon}}>
+                      <Activity size={28} />
+                    </div>
+                    <h3 style={styles.sensorTitle}>חיישן תנועה</h3>
                   </div>
 
-                  <div className="mb-3">
-                <span className="text-3xl font-bold text-blue-600">
+                  <div style={styles.sensorValue}>
+                <span style={styles.valueNumber}>
                   {typeof data.motion === 'number' ? data.motion.toFixed(1) : '0.0'}
                 </span>
-                    <span className="text-gray-500 text-sm mr-2">יחידות</span>
+                    <span style={styles.valueUnit}>יחידות</span>
                   </div>
 
-                  <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div style={styles.progressBar}>
                     <div
-                        className="bg-blue-500 h-3 rounded-full transition-all duration-300"
                         style={{
+                          ...styles.progressFill,
                           width: `${Math.min(Math.max((data.motion || 0) * 8, 0), 100)}%`
                         }}
-                    ></div>
+                    />
                   </div>
+
+                  {data.motion > 10 && (
+                      <div style={{marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: '#3b82f6'}}>
+                        <Zap size={16} />
+                        <span style={{fontSize: '0.875rem', fontWeight: '500'}}>תנועה אקטיבית</span>
+                      </div>
+                  )}
                 </div>
 
                 {/* דופק */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Heart className="text-red-500" size={28} />
-                    <h2 className="text-xl font-bold text-gray-800">דופק</h2>
+                <div style={styles.sensorCard}>
+                  <div style={styles.sensorHeader}>
+                    <div style={{...styles.sensorIcon, ...styles.pulseIcon}}>
+                      <Heart
+                          size={28}
+                          style={pulseAnimation ? {animation: 'pulse 0.8s ease-in-out infinite'} : {}}
+                      />
+                    </div>
+                    <h3 style={styles.sensorTitle}>דופק</h3>
                   </div>
 
-                  <div className="mb-3">
-                <span className="text-3xl font-bold text-red-600">
+                  <div style={styles.sensorValue}>
+                <span style={styles.valueNumber}>
                   {data.pulse > 0 ? data.pulse : '--'}
                 </span>
-                    <span className="text-gray-500 text-sm mr-2">BPM</span>
+                    <span style={styles.valueUnit}>BPM</span>
                   </div>
-
-                  <div className="text-gray-600 text-sm">
-                    <strong>מצב:</strong> {data.status}
-                  </div>
+                  <p style={{color: '#4b5563', fontSize: '0.875rem', margin: '4px 0'}}>
+                    מצב: {data.status}
+                  </p>
 
                   {data.pulse > 0 && (
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                          <span className="text-sm text-green-600">דופק פעיל</span>
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px'}}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981'}}>
+                          <div style={{
+                            width: '8px',
+                            height: '8px',
+                            background: '#10b981',
+                            borderRadius: '50%',
+                            animation: 'pulse 2s infinite'
+                          }}></div>
+                          <span style={{fontSize: '0.875rem', fontWeight: '500'}}>דופק פעיל</span>
+                        </div>
+                        <div style={{fontSize: '0.75rem', color: '#6b7280'}}>
+                          {data.pulse < 60 ? 'איטי' : data.pulse > 100 ? 'מהיר' : 'נורמלי'}
                         </div>
                       </div>
                   )}
                 </div>
 
                 {/* טמפרטורה */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Thermometer className="text-orange-500" size={28} />
-                    <h2 className="text-xl font-bold text-gray-800">טמפרטורה</h2>
+                <div style={styles.sensorCard}>
+                  <div style={styles.sensorHeader}>
+                    <div style={{...styles.sensorIcon, ...styles.tempIcon}}>
+                      <Thermometer size={28} />
+                    </div>
+                    <h3 style={styles.sensorTitle}>טמפרטורה</h3>
                   </div>
 
-                  <div className="mb-3">
-                <span className="text-3xl font-bold text-orange-600">
+                  <div style={styles.sensorValue}>
+                <span style={styles.valueNumber}>
                   {data.temperature ? data.temperature.toFixed(1) : '--'}
                 </span>
-                    <span className="text-gray-500 text-sm mr-2">°C</span>
+                    <span style={styles.valueUnit}>°C</span>
                   </div>
+                  <p style={{color: '#4b5563', fontSize: '0.875rem', margin: '4px 0'}}>
+                    סוג: {data.temp_status}
+                  </p>
 
-                  <div className="text-gray-600 text-sm">
-                    <strong>סוג:</strong> {data.temp_status}
-                  </div>
-
-                  {data.temperature && data.temperature > 37.2 && (
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                          <span className="text-sm text-red-600">טמפרטורה גבוהה</span>
+                  {data.temperature && (
+                      <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px'}}>
+                        <div style={{fontSize: '0.75rem', color: '#6b7280'}}>
+                          {data.temperature < 36 ? '🧊 קר' :
+                              data.temperature > 37.2 ? '🔥 חם' : '✅ נורמלי'}
                         </div>
+                        {data.temperature > 37.2 && (
+                            <div style={{display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '0.75rem'}}>
+                              <div style={{
+                                width: '8px',
+                                height: '8px',
+                                background: '#ef4444',
+                                borderRadius: '50%',
+                                animation: 'pulse 1s infinite'
+                              }}></div>
+                              גבוה
+                            </div>
+                        )}
                       </div>
                   )}
                 </div>
@@ -308,91 +579,138 @@ const SimplePulseSenseApp = () => {
 
           {/* התראות */}
           {alerts.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  🚨 התראות
+              <div style={styles.panel}>
+                <h3 style={{fontSize: '1.5rem', fontWeight: 'bold', color: 'white', margin: '0 0 24px 0'}}>
+                  🚨 התראות אחרונות
                 </h3>
-                <div className="space-y-3">
+                <div style={{display: 'flex', flexDirection: 'column', gap: '16px'}}>
                   {alerts.map((alert) => (
                       <div
                           key={alert.id}
-                          className="p-4 bg-red-50 border-r-4 border-red-500 rounded-lg"
+                          style={{
+                            padding: '16px',
+                            background: 'rgba(239, 68, 68, 0.2)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: '16px',
+                            backdropFilter: 'blur(4px)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start'
+                          }}
                       >
-                        <div className="flex justify-between items-start">
-                          <span className="text-red-800 font-medium">{alert.message}</span>
-                          <span className="text-red-600 text-xs">{alert.time}</span>
-                        </div>
+                  <span style={{color: 'rgba(255, 255, 255, 0.9)', fontWeight: '500', flex: 1}}>
+                    {alert.message}
+                  </span>
+                        <span style={{color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.875rem', whiteSpace: 'nowrap', marginRight: '12px'}}>
+                    {alert.time}
+                  </span>
                       </div>
                   ))}
                 </div>
                 <button
                     onClick={() => setAlerts([])}
-                    className="mt-3 text-sm text-gray-500 hover:text-gray-700"
+                    style={{
+                      marginTop: '16px',
+                      color: 'rgba(255, 255, 255, 0.6)',
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '0.875rem',
+                      cursor: 'pointer'
+                    }}
                 >
-                  נקה התראות
+                  נקה את כל ההתראות
                 </button>
               </div>
           )}
 
           {/* פקודות ובדיקות */}
           {connected && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">פקודות מהירות</h3>
-                <div className="flex gap-3 flex-wrap">
-                  <button
-                      onClick={() => sendCommand('ping')}
-                      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                  >
-                    🏓 בדיקת חיבור
-                  </button>
-                  <button
-                      onClick={() => sendCommand('1')}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                  >
-                    🏃 תנועה
-                  </button>
-                  <button
-                      onClick={() => sendCommand('2')}
-                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                  >
-                    💓 דופק
-                  </button>
-                  <button
-                      onClick={() => sendCommand('3')}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                  >
-                    🌡️ טמפרטורה
-                  </button>
-                  <button
-                      onClick={() => sendCommand('4')}
-                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                  >
-                    🔄 משולב
-                  </button>
-                  <button
-                      onClick={() => {
-                        console.clear();
-                        console.log('🧹 Console נוקה');
-                      }}
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
-                  >
-                    🧹 נקה Console
-                  </button>
+              <div style={styles.panel}>
+                <h3 style={{fontSize: '1.5rem', fontWeight: 'bold', color: 'white', margin: '0 0 24px 0'}}>
+                  פקודות מהירות
+                </h3>
+                <div style={styles.commandsGrid}>
+                  {[
+                    { cmd: 'ping', label: 'בדיקה', icon: '🏓' },
+                    { cmd: '1', label: 'תנועה', icon: '🏃' },
+                    { cmd: '2', label: 'דופק', icon: '💓' },
+                    { cmd: '3', label: 'טמפרטורה', icon: '🌡️' },
+                    { cmd: '4', label: 'משולב', icon: '🔄' },
+                    { cmd: 'clear', label: 'נקה', icon: '🧹' }
+                  ].map(({ cmd, label, icon }) => (
+                      <button
+                          key={cmd}
+                          onClick={() => cmd === 'clear' ? console.clear() : sendCommand(cmd)}
+                          style={styles.commandButton}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.05)';
+                            e.target.style.background = 'rgba(255, 255, 255, 0.2)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                            e.target.style.background = 'rgba(255, 255, 255, 0.1)';
+                          }}
+                      >
+                        <div style={styles.commandIcon}>{icon}</div>
+                        <div style={styles.commandLabel}>{label}</div>
+                      </button>
+                  ))}
                 </div>
               </div>
           )}
 
           {/* הוראות */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
-            <h3 className="text-lg font-bold text-yellow-800 mb-3">💡 איך מתחברים:</h3>
-            <ol className="text-yellow-700 space-y-2 list-decimal list-inside">
-              <li>וודא שה-ESP32 פועל ורואה "🔵 Bluetooth מוכן!"</li>
-              <li>לחץ "התחבר" ובחר מכשיר שמכיל "PulseSense" בשם</li>
-              <li>אם לא רואה - נסה לאפס את ESP32 ולנסות שוב</li>
-              <li>בדוק ב-Console (F12) אם יש שגיאות</li>
-            </ol>
+          <div style={{
+            ...styles.panel,
+            background: 'rgba(251, 191, 36, 0.2)',
+            border: '1px solid rgba(251, 191, 36, 0.3)'
+          }}>
+            <h3 style={{fontSize: '1.5rem', fontWeight: 'bold', color: 'white', margin: '0 0 16px 0'}}>
+              💡 הוראות שימוש
+            </h3>
+            <div style={{display: 'grid', gap: '24px', color: 'rgba(255, 255, 255, 0.9)'}}>
+              <div>
+                <h4 style={{fontWeight: '600', margin: '0 0 8px 0'}}>שלבי החיבור:</h4>
+                <ol style={{margin: 0, paddingRight: '20px', lineHeight: '1.6'}}>
+                  <li style={{fontSize: '0.875rem', marginBottom: '4px'}}>
+                    וודא שה-ESP32 פועל ורואה "🔵 Bluetooth מוכן!"
+                  </li>
+                  <li style={{fontSize: '0.875rem', marginBottom: '4px'}}>
+                    לחץ "התחבר למכשיר" ובחר מכשיר עם "PulseSense"
+                  </li>
+                  <li style={{fontSize: '0.875rem', marginBottom: '4px'}}>
+                    המתן לחיבור מוצלח
+                  </li>
+                </ol>
+              </div>
+              <div>
+                <h4 style={{fontWeight: '600', margin: '0 0 8px 0'}}>פתרון בעיות:</h4>
+                <ul style={{margin: 0, paddingRight: '20px', lineHeight: '1.6'}}>
+                  <li style={{fontSize: '0.875rem', marginBottom: '4px'}}>
+                    • אם לא רואה מכשיר - אפס את ESP32
+                  </li>
+                  <li style={{fontSize: '0.875rem', marginBottom: '4px'}}>
+                    • בדוק ב-Console (F12) אם יש שגיאות
+                  </li>
+                  <li style={{fontSize: '0.875rem', marginBottom: '4px'}}>
+                    • השתמש ב-Chrome או Edge בלבד
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
+
+        <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       </div>
   );
 };

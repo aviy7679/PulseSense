@@ -72,7 +72,6 @@ bool BLEHandler::begin() {
   // התחלת השירות
   pService->start();
   
-  // התחלת פרסום
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(false);

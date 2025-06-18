@@ -19,7 +19,8 @@ enum OperationMode {
   MOTION_DETECTION,
   PULSE_MEASUREMENT,
   TEMPERATURE_READING,
-  COMBINED_MODE
+  COMBINED_MODE,
+  DIAGNOSTIC_MODE  // מצב חדש לאבחון
 };
 
 OperationMode currentMode = COMBINED_MODE;
@@ -30,8 +31,8 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
   
-  Serial.println("🔥 PulseSense - מערכת מוניטורינג מתקדמת");
-  Serial.println("==========================================");
+  Serial.println("🔥 PulseSense - מערכת מוניטורינג מתקדמת V2.0");
+  Serial.println("================================================");
   
   // אתחול רכיבים
   initializeSystem();
@@ -42,22 +43,21 @@ void setup() {
   Serial.println("📋 פקודות:");
   Serial.println("   1 - מצב זיהוי תנועה");
   Serial.println("   2 - מצב מדידת דופק");
-  Serial.println("   3 - מצב מדידת טמפרטורה");
+  Serial.println("   3 - מצב מדידת טמפרטורה");  
   Serial.println("   4 - מצב משולב");
-  Serial.println("   + - הגבר עוצמת LED");
-  Serial.println("   - - הקטן עוצמת LED");
+  Serial.println("   5 - מצב אבחון");
+  Serial.println("   + - הגבר עוצמת LED דופק");
+  Serial.println("   - - הקטן עוצמת LED דופק");
   Serial.println("   r - איפוס חיישן דופק");
+  Serial.println("   d - אבחון חיישן דופק");
+  Serial.println("   i - מידע רגיסטרים");
+  Serial.println("   s - סריקת I2C");
   Serial.println();
-  Serial.println("🔍 סורק I2C...");
-  for (int addr = 1; addr < 127; addr++) {
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      Serial.print("✅ מכשיר נמצא: 0x");
-      Serial.println(addr, HEX);
-    }
-}
+  
   systemInitialized = true;
   lastPrint = millis();
+  
+  Serial.println("✅ מערכת מוכנה לפעולה!");
 }
 
 void loop() {
@@ -85,6 +85,10 @@ void loop() {
     case COMBINED_MODE:
       handleCombinedMode();
       break;
+      
+    case DIAGNOSTIC_MODE:
+      handleDiagnosticMode();
+      break;
   }
   
   delay(200); // 5 מדידות לשנייה
@@ -92,6 +96,12 @@ void loop() {
 
 void initializeSystem() {
   Serial.println("🔧 מאתחל מערכת...");
+  
+  // אתחול I2C ראשון - חשוב שזה יהיה לפני כל החיישנים!
+  Wire.begin(21, 22);
+  Wire.setClock(100000); // 100kHz לייצובות
+  delay(100);
+  Serial.println("   ✅ I2C מאותחל");
   
   // אתחול מנוע רטט
   vibrationMotor.begin();
@@ -105,18 +115,15 @@ void initializeSystem() {
     Serial.println("   ❌ שגיאה באתחול Bluetooth");
   }
   
+  // סריקת I2C לאבחון
+  Serial.println("🔍 סורק מכשירי I2C...");
+  scanI2CDevices();
+  
   // אתחול חיישן תנועה
   if (motionSensor.begin()) {
     Serial.println("   ✅ חיישן תנועה MPU6050 מוכן");
   } else {
     Serial.println("   ❌ שגיאה באתחול חיישן תנועה");
-  }
-  
-  // אתחול חיישן דופק
-  if (pulseSensor.begin()) {
-    Serial.println("   ✅ חיישן דופק MAX30102 מוכן");
-  } else {
-    Serial.println("   ❌ שגיאה באתחול חיישן דופק");
   }
   
   // אתחול חיישן טמפרטורה
@@ -126,8 +133,63 @@ void initializeSystem() {
     Serial.println("   ❌ שגיאה באתחול חיישן טמפרטורה");
   }
   
-  bluetooth.sendAlert("מערכת אותחלה בהצלחה עם כל החיישנים!");
+  // אתחול חיישן דופק - אחרון כי הוא הכי בעייתי
+  Serial.println("💓 מאתחל חיישן דופק...");
+  if (pulseSensor.begin()) {
+    Serial.println("   ✅ חיישן דופק MAX30102 מוכן");
+    bluetooth.sendAlert("מערכת אותחלה בהצלחה עם כל החיישנים!");
+  } else {
+    Serial.println("   ❌ שגיאה באתחול חיישן דופק");
+    Serial.println("   💡 נסה:");
+    Serial.println("      • בדוק חיבורים");
+    Serial.println("      • לחץ 'r' לאיפוס");
+    Serial.println("      • לחץ 'd' לאבחון מתקדם");
+    bluetooth.sendAlert("מערכת אותחלה - בעיה בחיישן דופק");
+  }
+  
   Serial.println("✅ אתחול הושלם!");
+}
+
+void scanI2CDevices() {
+  byte error, address;
+  int nDevices = 0;
+  
+  for(address = 1; address < 127; address++) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    
+    if (error == 0) {
+      Serial.print("   🔍 מכשיר: 0x");
+      if (address < 16) Serial.print("0");
+      Serial.print(address, HEX);
+      
+      // זיהוי מכשירים ידועים
+      switch(address) {
+        case 0x48:
+          Serial.print(" (AM-057 Temperature)");
+          break;
+        case 0x57:
+          Serial.print(" (MAX30102 Pulse)");
+          break;
+        case 0x68:
+          Serial.print(" (MPU6050 Motion)");
+          break;
+        default:
+          Serial.print(" (Unknown)");
+          break;
+      }
+      Serial.println();
+      nDevices++;
+    }
+  }
+  
+  Serial.print("   📊 נמצאו ");
+  Serial.print(nDevices);
+  Serial.println(" מכשירים");
+  
+  if (nDevices == 0) {
+    Serial.println("   ❌ לא נמצאו מכשירים - בדוק חיבורי I2C!");
+  }
 }
 
 void startupSequence() {
@@ -164,25 +226,62 @@ void handleUserCommands() {
         Serial.println("🔄 מצב: משולב");
         break;
         
+      case '5':
+        currentMode = DIAGNOSTIC_MODE;
+        Serial.println("🔍 מצב: אבחון");
+        break;
+        
       case '+':
         pulseSensor.increaseLEDPower();
-        Serial.print("💡 עוצמת LED: 0x");
-        Serial.println(pulseSensor.getLEDPower(), HEX);
         break;
         
       case '-':
         pulseSensor.decreaseLEDPower();
-        Serial.print("💡 עוצמת LED: 0x");
-        Serial.println(pulseSensor.getLEDPower(), HEX);
         break;
         
       case 'r':
+      case 'R':
         Serial.println("🔄 מאפס חיישן דופק...");
         pulseSensor.resetSensor();
-        Serial.println("✅ איפוס הושלם");
+        break;
+        
+      case 'd':
+      case 'D':
+        Serial.println("🔍 מפעיל אבחון חיישן דופק...");
+        pulseSensor.diagnosticMode();
+        break;
+        
+      case 'i':
+      case 'I':
+        pulseSensor.readAllRegisters();
+        break;
+        
+      case 's':
+      case 'S':
+        Serial.println("🔍 סורק I2C...");
+        scanI2CDevices();
+        break;
+        
+      case 'h':
+      case 'H':
+        showHelp();
         break;
     }
   }
+}
+
+void showHelp() {
+  Serial.println("📋 עזרה - כל הפקודות:");
+  Serial.println("מצבי פעולה:");
+  Serial.println("  1-5 = שינוי מצב פעולה");
+  Serial.println("חיישן דופק:");
+  Serial.println("  + - = עוצמת LED");
+  Serial.println("  r = איפוס");
+  Serial.println("  d = אבחון מתקדם");
+  Serial.println("  i = מידע רגיסטרים");
+  Serial.println("מערכת:");
+  Serial.println("  s = סריקת I2C");
+  Serial.println("  h = עזרה זו");
 }
 
 void handleBluetoothCommands() {
@@ -207,6 +306,14 @@ void handleBluetoothCommands() {
       currentMode = COMBINED_MODE;
       bluetooth.sendAlert("מצב: משולב");
     }
+    else if (command == "5") {
+      currentMode = DIAGNOSTIC_MODE;
+      bluetooth.sendAlert("מצב: אבחון");
+    }
+    else if (command == "reset_pulse") {
+      pulseSensor.resetSensor();
+      bluetooth.sendAlert("חיישן דופק אופס");
+    }
   }
 }
 
@@ -216,7 +323,8 @@ void handleMotionDetection() {
   // בדיקת נפילה
   if (motionSensor.detectFall(12.0)) {
     Serial.println("🚨 זוהתה נפילה!");
-    vibrationMotor.vibrateAlert(); // 3 רטטים חזקים
+    vibrationMotor.vibrateAlert();
+    bluetooth.sendAlert("זוהתה נפילה!");
   }
 
   // בדיקת חוסר תנועה
@@ -244,7 +352,7 @@ void handlePulseMeasurement() {
       return;
     }
 
-    // הצגת נתונים
+    // הצגת נתונים מפורטת
     Serial.print("💓 IR: ");
     Serial.print(ir);
     Serial.print(" | Red: ");
@@ -263,13 +371,23 @@ void handlePulseMeasurement() {
       Serial.print(" BPM");
 
       // רטט עם הדופק
-      vibrationMotor.vibrate(50);
+      vibrationMotor.vibrateGentle(50);
     }
 
     Serial.println();
 
   } else {
     Serial.println("❌ שגיאה בקריאת חיישן דופק");
+    
+    // ספירת שגיאות רצופות
+    static int errorCount = 0;
+    errorCount++;
+    
+    if (errorCount > 10) {
+      Serial.println("🔄 יותר מדי שגיאות - מבצע איפוס...");
+      pulseSensor.resetSensor();
+      errorCount = 0;
+    }
   }
 }
 
@@ -288,6 +406,7 @@ void handleTemperatureReading() {
       if (temperature > 38.5) {
         Serial.println("🚨 טמפרטורה גבוהה!");
         vibrationMotor.vibrate(300);
+        bluetooth.sendAlert("טמפרטורה גבוהה: " + String(temperature, 1) + "°C");
       }
     } else {
       Serial.println("❌ שגיאה בקריאת טמפרטורה");
@@ -301,46 +420,51 @@ void handleCombinedMode() {
   motionSensor.update();
   
   // בדיקות חירום (תנועה)
-  // if (motionSensor.detectFall(12.0)) {
-  //   Serial.println("🚨 זוהתה נפילה!");
-  //   bluetooth.sendAlert("זוהתה נפילה!");
-  //   vibrationMotor.vibrateAlert();
-  //   return; // דחיפות עליונה לנפילה
-  // }
+  if (motionSensor.detectFall(12.0)) {
+    Serial.println("🚨 זוהתה נפילה!");
+    bluetooth.sendAlert("זוהתה נפילה!");
+    vibrationMotor.vibrateAlert();
+    return; // דחיפות עליונה לנפילה
+  }
   
   // מדידת דופק
   uint32_t red, ir;
-  if (pulseSensor.readData(&red, &ir)) {
+  bool pulseDataValid = pulseSensor.readData(&red, &ir);
+  
+  // שליחת נתונים לאפליקציה כל שנייה
+  static unsigned long lastBluetoothSend = 0;
+  if (millis() - lastBluetoothSend > 1000) {
+    float motion = motionSensor.getMotionMagnitude();
+    String touchStatus = getTouchStatus(ir);
+    int bpm = 0;
     
-    // שליחת נתונים לאפליקציה כל שנייה
-    static unsigned long lastBluetoothSend = 0;
-    if (millis() - lastBluetoothSend > 1000) {
-      float motion = motionSensor.getMotionMagnitude();
-      String touchStatus = getTouchStatus(ir);
-      int bpm = pulseSensor.calculateBPM(ir);
-      
-      // קריאת טמפרטורה
-      float temperature = tempSensor.readTemperature();
-      
-      bluetooth.sendData(motion, bpm, touchStatus, temperature);
-      lastBluetoothSend = millis();
-      
-      // בדיקת חוסר תנועה
-      if (motionSensor.detectNoMotion(10000)) {
-        bluetooth.sendAlert("אין תנועה כבר 10 שניות");
-      }
-      
-      // בדיקת חום גבוה
-      if (temperature > 38.5 && temperature != -999) {
-        bluetooth.sendAlert("טמפרטורה גבוהה: " + String(temperature, 1) + "°C");
-      }
+    if (pulseDataValid) {
+      bpm = pulseSensor.calculateBPM(ir);
     }
     
-    // הצגה מתמצתת ל-Serial
-    if (millis() - lastPrint > 3000) {
-      Serial.print("📊 תנועה: ");
-      Serial.print(motionSensor.getMotionMagnitude(), 1);
-      
+    // קריאת טמפרטורה
+    float temperature = tempSensor.readTemperature();
+    
+    bluetooth.sendData(motion, bpm, touchStatus, temperature);
+    lastBluetoothSend = millis();
+    
+    // בדיקת חוסר תנועה
+    if (motionSensor.detectNoMotion(10000)) {
+      bluetooth.sendAlert("אין תנועה כבר 10 שניות");
+    }
+    
+    // בדיקת חום גבוה
+    if (temperature > 38.5 && temperature != -999) {
+      bluetooth.sendAlert("טמפרטורה גבוהה: " + String(temperature, 1) + "°C");
+    }
+  }
+  
+  // הצגה מתמצתת ל-Serial
+  if (millis() - lastPrint > 3000) {
+    Serial.print("📊 תנועה: ");
+    Serial.print(motionSensor.getMotionMagnitude(), 1);
+    
+    if (pulseDataValid) {
       Serial.print(" | מגע: ");
       Serial.print(getTouchStatus(ir));
       
@@ -353,31 +477,59 @@ void handleCombinedMode() {
         // רטט עדין
         vibrationMotor.vibrateGentle(30);
       }
-      
-      // הצגת טמפרטורה
-      float temp = tempSensor.readTemperature();
-      if (temp != -999) {
-        Serial.print(" | טמפ': ");
-        Serial.print(temp, 1);
-        Serial.print("°C");
-      }
-      
-      // בדיקת חוסר תנועה
-      if (motionSensor.detectNoMotion(10000)) {
-        Serial.print(" | 😴 חוסר תנועה");
-      }
-      
-      Serial.println();
-      lastPrint = millis();
+    } else {
+      Serial.print(" | דופק: שגיאה");
     }
+    
+    // הצגת טמפרטורה
+    float temp = tempSensor.readTemperature();
+    if (temp != -999) {
+      Serial.print(" | טמפ': ");
+      Serial.print(temp, 1);
+      Serial.print("°C");
+    }
+    
+    // בדיקת חוסר תנועה
+    if (motionSensor.detectNoMotion(10000)) {
+      Serial.print(" | 😴 חוסר תנועה");
+    }
+    
+    Serial.println();
+    lastPrint = millis();
   }
 }
 
-void emergencyAlert() {
-  for (int i = 0; i < 5; i++) {
-    vibrationMotor.vibrate(200);
-    delay(100);
+void handleDiagnosticMode() {
+  // מצב אבחון מתקדם
+  static unsigned long lastDiagnostic = 0;
+  
+  if (millis() - lastDiagnostic > 5000) {
+    Serial.println("🔍 מצב אבחון פעיל");
+    Serial.println("   לחץ 'd' לאבחון מלא של חיישן הדופק");
+    Serial.println("   לחץ 'i' למידע רגיסטרים");
+    Serial.println("   לחץ 's' לסריקת I2C");
+    Serial.println("   לחץ '4' לחזרה למצב משולב");
+    
+    lastDiagnostic = millis();
   }
+  
+  // קריאה בסיסית
+  uint32_t red, ir;
+  if (pulseSensor.readData(&red, &ir)) {
+    static int diagCount = 0;
+    diagCount++;
+    
+    if (diagCount % 5 == 0) {
+      Serial.print("🔍 IR: ");
+      Serial.print(ir);
+      Serial.print(", Red: ");
+      Serial.print(red);
+      Serial.print(", Touch: ");
+      Serial.println(getTouchStatus(ir));
+    }
+  }
+  
+  delay(200);
 }
 
 // פונקציה חדשה להערכת מצב המגע
@@ -390,129 +542,3 @@ String getTouchStatus(uint32_t irValue) {
     return "אין מגע";
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// #include <Arduino.h>
-
-// #define VIBRATION_PIN 13  
-
-// void setup() {
-//   Serial.begin(115200);
-//   delay(1000);
-  
-//   // הגדרת הפין כיציאה
-//   pinMode(VIBRATION_PIN, OUTPUT);
-//   digitalWrite(VIBRATION_PIN, LOW); // ודא שהרטט כבוי
-  
-//   Serial.println("=== מנוע רטט DEBUG ===");
-//   Serial.print("משתמש בפין: ");
-//   Serial.println(VIBRATION_PIN);
-//   Serial.println("כובה את הרטט...");
-  
-//   // ודא שהפין כבוי
-//   digitalWrite(VIBRATION_PIN, LOW);
-//   delay(2000);
-  
-//   Serial.println("האם הרטט נעצר עכשיו? (אמור להיות שקט)");
-//   delay(3000);
-  
-//   Serial.println("עכשיו בדיקה חד-פעמית...");
-//   vibrate(500); 
-//   Serial.println("זה היה הרטט היחיד!");
-  
-//   Serial.println("=== מוכן לפקודות ===");
-//   Serial.println("הקלידי 'v' לרטט");
-// }
-
-// void loop() {
-//   // DEBUG: בדיקה שהפין אכן LOW
-//   static unsigned long lastCheck = 0;
-//   if (millis() - lastCheck > 5000) { // כל 5 שניות
-//     Serial.print("מצב פין ");
-//     Serial.print(VIBRATION_PIN);
-//     Serial.print(": ");
-//     Serial.println(digitalRead(VIBRATION_PIN) ? "HIGH (רטט)" : "LOW (שקט)");
-//     lastCheck = millis();
-//   }
-  
-//   // בדיקת פקודות מהמשתמש
-//   if (Serial.available()) {
-//     char command = Serial.read();
-    
-//     if (command == 'v' || command == 'V') {
-//       Serial.println("רטט ידני!");
-//       vibrate(300);
-//     }
-//     else if (command == 'a' || command == 'A') {
-//       Serial.println("התראת רטט!");
-//       vibrateAlert();
-//     }
-//     else if (command == 'p' || command == 'P') {
-//       Serial.println("תבנית רטט!");
-//       vibratePattern();
-//     }
-//     else if (command == 's' || command == 'S') {
-//       Serial.println("עצירה מלאה!");
-//       digitalWrite(VIBRATION_PIN, LOW);
-//       analogWrite(VIBRATION_PIN, 0);
-//     }
-//   }
-  
-//   delay(100);
-// }
-
-// // פונקציה לרטט בסיסי
-// void vibrate(int duration_ms) {
-//   digitalWrite(VIBRATION_PIN, HIGH); // הפעל רטט
-//   delay(duration_ms);
-//   digitalWrite(VIBRATION_PIN, LOW);  // כבה רטט
-// }
-
-// // רטט עם עוצמה מותאמת (0-255)
-// void vibratePWM(int power, int duration_ms) {
-//   analogWrite(VIBRATION_PIN, power);
-//   delay(duration_ms);
-//   analogWrite(VIBRATION_PIN, 0);
-// }
-
-// // התראת רטט - 3 רטטים קצרים
-// void vibrateAlert() {
-//   for(int i = 0; i < 3; i++) {
-//     vibrate(200);
-//     delay(150);
-//   }
-// }
-
-// // תבנית רטט מיוחדת
-// void vibratePattern() {
-//   vibrate(100); // קצר
-//   delay(100);
-//   vibrate(100); // קצר
-//   delay(100);
-//   vibrate(500); // ארוך
-// }
-
-// // רטט עדין (לחיסכון בזרם)
-// void vibrateGentle(int duration_ms) {
-//   vibratePWM(120, duration_ms); // כ-47% כוח
-// }
