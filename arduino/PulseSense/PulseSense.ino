@@ -2,7 +2,7 @@
 #include "VibrationMotor.h"
 #include "MAX30102Sensor.h"
 #include "BLEHandler.h"
-#include "TemperatureSensor.h"
+#include "MAX30205Sensor.h"
 
 // הגדרות פינים
 #define VIBRATION_PIN 13
@@ -12,7 +12,7 @@ VibrationMotor vibrationMotor(VIBRATION_PIN);
 MPU6050Sensor motionSensor;
 MAX30102Sensor pulseSensor;
 BLEHandler bluetooth;
-TemperatureSensor tempSensor;
+MAX30205Sensor tempSensor;
 
 // משתנים למצב הפעולה
 enum OperationMode {
@@ -31,7 +31,7 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
   
-  Serial.println("🔥 PulseSense - מערכת מוניטורינג מתקדמת V2.0");
+  Serial.println("🩺 PulseSense - מערכת מוניטורינג מתקדמת");
   Serial.println("================================================");
   
   // אתחול רכיבים
@@ -63,6 +63,7 @@ void setup() {
 void loop() {
   // עדכון BLE status
   bluetooth.update();
+  vibrationMotor.update();
   
   // בדיקת פקודות מהמשתמש (Serial ו-Bluetooth)
   handleUserCommands();
@@ -97,7 +98,7 @@ void loop() {
 void initializeSystem() {
   Serial.println("🔧 מאתחל מערכת...");
   
-  // אתחול I2C ראשון - חשוב שזה יהיה לפני כל החיישנים!
+  // אתחול I2C - חשוב שזה יהיה לפני כל החיישנים!
   Wire.begin(21, 22);
   Wire.setClock(100000); // 100kHz לייצובות
   delay(100);
@@ -132,8 +133,7 @@ void initializeSystem() {
   } else {
     Serial.println("   ❌ שגיאה באתחול חיישן טמפרטורה");
   }
-  
-  // אתחול חיישן דופק - אחרון כי הוא הכי בעייתי
+   
   Serial.println("💓 מאתחל חיישן דופק...");
   if (pulseSensor.begin()) {
     Serial.println("   ✅ חיישן דופק MAX30102 מוכן");
@@ -204,8 +204,12 @@ void startupSequence() {
 void handleUserCommands() {
   if (Serial.available()) {
     char cmd = Serial.read();
-    
-    switch (cmd) {
+    handleCommands(cmd);
+  }
+}
+
+void handleCommands(String cmd){
+  switch (cmd) {
       case '1':
         currentMode = MOTION_DETECTION;
         Serial.println("🏃 מצב: זיהוי תנועה בלבד");
@@ -267,7 +271,6 @@ void handleUserCommands() {
         showHelp();
         break;
     }
-  }
 }
 
 void showHelp() {
@@ -290,30 +293,8 @@ void handleBluetoothCommands() {
     if (command == "ping") {
       bluetooth.sendAlert("pong - המערכת עובדת!");
     }
-    else if (command == "1") {
-      currentMode = MOTION_DETECTION;
-      bluetooth.sendAlert("מצב: זיהוי תנועה");
-    }
-    else if (command == "2") {
-      currentMode = PULSE_MEASUREMENT;
-      bluetooth.sendAlert("מצב: מדידת דופק");
-    }
-    else if (command == "3") {
-      currentMode = TEMPERATURE_READING;
-      bluetooth.sendAlert("מצב: מדידת טמפרטורה");
-    }
-    else if (command == "4") {
-      currentMode = COMBINED_MODE;
-      bluetooth.sendAlert("מצב: משולב");
-    }
-    else if (command == "5") {
-      currentMode = DIAGNOSTIC_MODE;
-      bluetooth.sendAlert("מצב: אבחון");
-    }
-    else if (command == "reset_pulse") {
-      pulseSensor.resetSensor();
-      bluetooth.sendAlert("חיישן דופק אופס");
-    }
+    else 
+      handleCommands(command);
   }
 }
 

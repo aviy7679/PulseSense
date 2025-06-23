@@ -2,10 +2,10 @@
 #define BLE_HANDLER_H
 
 #include <Arduino.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
+#include <BLEDevice.h>   //ספריית הבסיס של הבלוטוס
+#include <BLEServer.h>   //יצירת השירות והמאפיינים
+#include <BLEUtils.h>    //ספרייה להמרות, הגדרות וכדומה
+#include <BLE2902.h>     //האפשרות לעשות NOTIFY מהבקר לאפליקציה
 
 class BLEHandler {
   public:
@@ -19,7 +19,9 @@ class BLEHandler {
     
   private:
     BLEServer* pServer;
+    //שליחת נתונים מה-ESP32 אל האפליקציה
     BLECharacteristic* pCharacteristic;
+    //קבלת פקודות מהאפליקציה ל־ESP32
     BLECharacteristic* pCommandCharacteristic;
     bool deviceConnected;
     String receivedCommand;

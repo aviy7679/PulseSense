@@ -1,7 +1,7 @@
 #include "MAX30102Sensor.h"
 
 MAX30102Sensor::MAX30102Sensor() {
-  ledPower = 0x1F;
+  ledPower = 0x08;
   lastIR = 0;
   lastRed = 0;
   dataChanging = false;
@@ -186,142 +186,199 @@ bool MAX30102Sensor::verifySettings() {
   return success;
 }
 
+// bool MAX30102Sensor::readData(uint32_t *red, uint32_t *ir) {
+//   // בדיקה שהחיישן עדיין מגיב
+//   Wire.beginTransmission(MAX30105_ADDRESS);
+//   if (Wire.endTransmission() != 0) {
+//     consecutiveErrors++;
+//     Serial.println("❌ חיישן לא מגיב ב-I2C");
+//     if (consecutiveErrors > 5) {
+//       Serial.println("🔄 חיישן אבד - מאתחל מחדש...");
+//       begin(); // אתחול מחדש מלא
+//       consecutiveErrors = 0;
+//     }
+//     return false;
+//   }
+  
+//   //בדיקה שהחיישן לא נכבה*
+//   uint8_t modeReg = readRegister(REG_MODE_CONFIG);
+//   if (modeReg == 0x00) {
+//     Serial.println("🚨 החיישן נכבה! מאתחל מחדש...");
+    
+//     // אתחול מהיר
+//     writeRegister(REG_MODE_CONFIG, MODE_HR_SPO2); // HR + SpO2 mode
+//     delay(10);
+//     writeRegister(REG_SPO2_CONFIG, CONFIG_SPO2_DEFAULT); // SpO2 config
+//     delay(10);
+//     writeRegister(REG_LED_RED, ledPower); // Red LED
+//     writeRegister(REG_LED_IR, ledPower); // IR LED
+//     delay(50);
+    
+//     // וירוף שהתיקון עבד
+//     modeReg = readRegister(REG_MODE_CONFIG);
+//     if (modeReg != MODE_HR_SPO2) {
+//       Serial.println("❌ כשל בתיקון - חיישן פגום או בעיית כוח");
+//       return false;
+//     } else {
+//       Serial.println("✅ חיישן הופעל מחדש");
+//     }
+//   }
+  
+//   // בדיקת FIFO pointers
+//   uint8_t writePtr = readRegister(REG_FIFO_WR_PTR);
+//   uint8_t readPtr = readRegister(REG_FIFO_RD_PTR);
+  
+//   // אם אין נתונים חדשים, נמתין
+//   if (writePtr == readPtr) {
+//     delay(10); // המתנה קצרה
+//     writePtr = readRegister(REG_FIFO_WR_PTR);
+//     readPtr = readRegister(REG_FIFO_RD_PTR);
+    
+//     if (writePtr == readPtr) {
+//       return false; // עדיין אין נתונים
+//     }
+//   }
+  
+//   // קריאת נתונים עם retry logic
+//   bool success = false;
+//   for (int attempt = 0; attempt < 3; attempt++) {
+//     Wire.beginTransmission(MAX30105_ADDRESS);
+//     Wire.write(0x07); // FIFO Data register
+    
+//     if (Wire.endTransmission(false) == 0) {
+//       //קורא לבאפר פנימי של מחלקת Wire בתוך ESP32
+//       int received = Wire.requestFrom(MAX30105_ADDRESS, 6);
+      
+//       if (received == 6) {
+//         // קריאת Red (3 bytes ראשונים)
+//         *red = 0;
+//         *red |= (uint32_t)Wire.read() << 16;
+//         *red |= (uint32_t)Wire.read() << 8;
+//         *red |= Wire.read();
+//         *red &= 0x3FFFF;
+        
+//         // קריאת IR (3 bytes אחרונים)  
+//         *ir = 0;
+//         *ir |= (uint32_t)Wire.read() << 16;
+//         *ir |= (uint32_t)Wire.read() << 8;
+//         *ir |= Wire.read();
+//         *ir &= 0x3FFFF;
+        
+//         success = true;
+//         break;
+//       }
+//     }
+    
+//     delay(5); // המתנה קצרה בין ניסיונות
+//   }
+  
+//   if (!success) {
+//     consecutiveErrors++;
+//     Serial.print("❌ כשל בקריאת FIFO (ניסיון ");
+//     Serial.print(consecutiveErrors);
+//     Serial.println(")");
+//     return false;
+//   }
+  
+//   // איפוס מונה שגיאות אם הקריאה הצליחה
+//   consecutiveErrors = 0;
+//   lastSuccessfulRead = millis();
+  
+//   // בדיקת תקינות נתונים
+//   if (*red == 0 && *ir == 0) {
+//     // נתונים אפסיים - אולי FIFO ריק
+//     return false;
+//   }
+  
+//   // בדיקת oversaturation
+//   if (*red == 0x3FFFF || *ir == 0x3FFFF) {
+//     clearFIFO();
+//     Serial.println("⚠️ Oversaturation - מקטין עוצמת LED");
+//     if (ledPower > MIN_LED_POWER) {
+//       ledPower -= LED_POWER_STEP;
+//       updateLEDs();
+//     }
+//   }
+  
+//   // בדיקת נתונים חלשים מדי (רק אם יש מגע)
+//   if (*ir < 1000 && *ir > 0) {
+//     Serial.println("⚠️ איתות חלש - מגביר עוצמת LED");
+//     if (ledPower < MAX_LED_POWER) {
+//       ledPower += LED_POWER_STEP;
+//       updateLEDs();
+//     }
+//   }
+  
+//   // בדיקה משופרת של נתונים תקועים
+//   if (*ir == lastIR && *red == lastRed && (*ir > 0 || *red > 0)) {
+//     unchangedCount++;
+    
+//     if (unchangedCount > 15) {
+//       Serial.println("🔄 נתונים תקועים - מנקה FIFO...");
+//       clearFIFO();
+//       unchangedCount = 0;
+//       return false;
+//     }
+//   } else {
+//     unchangedCount = 0;
+//     dataChanging = true;
+//   }
+  
+//   lastIR = *ir;
+//   lastRed = *red;
+  
+//   return true;
+// }
+
 bool MAX30102Sensor::readData(uint32_t *red, uint32_t *ir) {
-  // בדיקה שהחיישן עדיין מגיב
   Wire.beginTransmission(MAX30105_ADDRESS);
-  if (Wire.endTransmission() != 0) {
+  Wire.write(0x07); // FIFO Data register
+  
+  if (Wire.endTransmission(false) != 0) {
     consecutiveErrors++;
-    Serial.println("❌ חיישן לא מגיב ב-I2C");
     if (consecutiveErrors > 5) {
-      Serial.println("🔄 חיישן אבד - מאתחל מחדש...");
-      begin(); // אתחול מחדש מלא
+      Serial.println("🔄 איפוס בגלל שגיאות I2C...");
+      resetSensor();
       consecutiveErrors = 0;
     }
     return false;
   }
   
-  //בדיקה שהחיישן לא נכבה*
-  uint8_t modeReg = readRegister(REG_MODE_CONFIG);
-  if (modeReg == 0x00) {
-    Serial.println("🚨 החיישן נכבה! מאתחל מחדש...");
-    
-    // אתחול מהיר
-    writeRegister(REG_MODE_CONFIG, MODE_HR_SPO2); // HR + SpO2 mode
-    delay(10);
-    writeRegister(REG_SPO2_CONFIG, CONFIG_SPO2_DEFAULT); // SpO2 config
-    delay(10);
-    writeRegister(REG_LED_RED, ledPower); // Red LED
-    writeRegister(REG_LED_IR, ledPower); // IR LED
-    delay(50);
-    
-    // וירוף שהתיקון עבד
-    modeReg = readRegister(REG_MODE_CONFIG);
-    if (modeReg != MODE_HR_SPO2) {
-      Serial.println("❌ כשל בתיקון - חיישן פגום או בעיית כוח");
-      return false;
-    } else {
-      Serial.println("✅ חיישן הופעל מחדש");
-    }
-  }
-  
-  // בדיקת FIFO pointers
-  uint8_t writePtr = readRegister(REG_FIFO_WR_PTR);
-  uint8_t readPtr = readRegister(REG_FIFO_RD_PTR);
-  
-  // אם אין נתונים חדשים, נמתין
-  if (writePtr == readPtr) {
-    delay(10); // המתנה קצרה
-    writePtr = readRegister(REG_FIFO_WR_PTR);
-    readPtr = readRegister(REG_FIFO_RD_PTR);
-    
-    if (writePtr == readPtr) {
-      return false; // עדיין אין נתונים
-    }
-  }
-  
-  // קריאת נתונים עם retry logic
-  bool success = false;
-  for (int attempt = 0; attempt < 3; attempt++) {
-    Wire.beginTransmission(MAX30105_ADDRESS);
-    Wire.write(0x07); // FIFO Data register
-    
-    if (Wire.endTransmission(false) == 0) {
-      //קורא לבאפר פנימי של מחלקת Wire בתוך ESP32
-      int received = Wire.requestFrom(MAX30105_ADDRESS, 6);
-      
-      if (received == 6) {
-        // קריאת Red (3 bytes ראשונים)
-        *red = 0;
-        *red |= (uint32_t)Wire.read() << 16;
-        *red |= (uint32_t)Wire.read() << 8;
-        *red |= Wire.read();
-        *red &= 0x3FFFF;
-        
-        // קריאת IR (3 bytes אחרונים)  
-        *ir = 0;
-        *ir |= (uint32_t)Wire.read() << 16;
-        *ir |= (uint32_t)Wire.read() << 8;
-        *ir |= Wire.read();
-        *ir &= 0x3FFFF;
-        
-        success = true;
-        break;
-      }
-    }
-    
-    delay(5); // המתנה קצרה בין ניסיונות
-  }
-  
-  if (!success) {
+  int received = Wire.requestFrom(MAX30105_ADDRESS, 6);
+  if (received < 6) {
     consecutiveErrors++;
-    Serial.print("❌ כשל בקריאת FIFO (ניסיון ");
-    Serial.print(consecutiveErrors);
-    Serial.println(")");
     return false;
   }
   
-  // איפוס מונה שגיאות אם הקריאה הצליחה
+  // קריאת Red (3 bytes ראשונים)
+  *red = 0;
+  *red |= (uint32_t)Wire.read() << 16;
+  *red |= (uint32_t)Wire.read() << 8;
+  *red |= Wire.read();
+  *red &= 0x3FFFF;
+  
+  // קריאת IR (3 bytes אחרונים)  
+  *ir = 0;
+  *ir |= (uint32_t)Wire.read() << 16;
+  *ir |= (uint32_t)Wire.read() << 8;
+  *ir |= Wire.read();
+  *ir &= 0x3FFFF;
+  
+  // איפוס מונה שגיאות רק אם הקריאה הצליחה
   consecutiveErrors = 0;
   lastSuccessfulRead = millis();
   
-  // בדיקת תקינות נתונים
-  if (*red == 0 && *ir == 0) {
-    // נתונים אפסיים - אולי FIFO ריק
-    return false;
-  }
-  
-  // בדיקת oversaturation
-  if (*red == 0x3FFFF || *ir == 0x3FFFF) {
-    clearFIFO();
-    Serial.println("⚠️ Oversaturation - מקטין עוצמת LED");
-    if (ledPower > MIN_LED_POWER) {
-      ledPower -= LED_POWER_STEP;
-      updateLEDs();
-    }
-  }
-  
-  // בדיקת נתונים חלשים מדי (רק אם יש מגע)
-  if (*ir < 1000 && *ir > 0) {
-    Serial.println("⚠️ איתות חלש - מגביר עוצמת LED");
-    if (ledPower < MAX_LED_POWER) {
-      ledPower += LED_POWER_STEP;
-      updateLEDs();
-    }
-  }
-  
-  // בדיקה משופרת של נתונים תקועים
+  // בדיקת נתונים תקועים
   if (*ir == lastIR && *red == lastRed && (*ir > 0 || *red > 0)) {
     unchangedCount++;
-    
     if (unchangedCount > 15) {
-      Serial.println("🔄 נתונים תקועים - מנקה FIFO...");
-      clearFIFO();
+      Serial.println("🔄 נתונים תקועים - איפוס...");
+      resetSensor();
       unchangedCount = 0;
       return false;
     }
   } else {
     unchangedCount = 0;
-    dataChanging = true;
   }
   
   lastIR = *ir;
@@ -427,49 +484,157 @@ bool MAX30102Sensor::isStrongTouch() {
   return lastIR > 50000;
 }
 
-int MAX30102Sensor::calculateBPM(uint32_t irValue) {
-  // אלגוריתם דופק
-  static uint32_t lastValue = 0;
-  static unsigned long lastTime = 0;
-  static int bpmBuffer[5] = {0};
-  static int bufferIndex = 0;
-  static bool bufferFull = false;
+// int MAX30102Sensor::calculateBPM(uint32_t irValue) {
+//   // אלגוריתם דופק
+//   static uint32_t lastValue = 0;
+//   static unsigned long lastTime = 0;
+//   static int bpmBuffer[5] = {0};
+//   static int bufferIndex = 0;
+//   static bool bufferFull = false;
   
-  // זיהוי עליה חדה - מדד לדופק
-  if (irValue > 40000 && irValue > lastValue + 3000) {
-    unsigned long now = millis();
+//   // זיהוי עליה חדה - מדד לדופק
+//   if (irValue > 40000 && irValue > lastValue + 3000) {
+//     unsigned long now = millis();
 
-    // 40-150 BPM - סינון ערכים לא הגיוניים
-    if (now - lastTime > 400 && now - lastTime < 1500) { 
-      int currentBPM = 60000 / (now - lastTime);
+//     // 40-150 BPM - סינון ערכים לא הגיוניים
+//     if (now - lastTime > 400 && now - lastTime < 1500) { 
+//       int currentBPM = 60000 / (now - lastTime);
       
-      if (currentBPM > 50 && currentBPM < 150) {
-        // הוספה לbuffer לחישוב ממוצע
-        bpmBuffer[bufferIndex] = currentBPM;
-        bufferIndex = (bufferIndex + 1) % 5;
-        if (bufferIndex == 0) bufferFull = true;
+//       if (currentBPM > 50 && currentBPM < 150) {
+//         // הוספה לbuffer לחישוב ממוצע
+//         bpmBuffer[bufferIndex] = currentBPM;
+//         bufferIndex = (bufferIndex + 1) % 5;
+//         if (bufferIndex == 0) bufferFull = true;
         
-        // חישוב ממוצע
-        if (bufferFull) {
-          int sum = 0;
-          for (int i = 0; i < 5; i++) {
-            sum += bpmBuffer[i];
-          }
-          lastBPM = sum / 5;
-        } else {
-          lastBPM = currentBPM;
-        }
+//         // חישוב ממוצע
+//         if (bufferFull) {
+//           int sum = 0;
+//           for (int i = 0; i < 5; i++) {
+//             sum += bpmBuffer[i];
+//           }
+//           lastBPM = sum / 5;
+//         } else {
+//           lastBPM = currentBPM;
+//         }
         
-        lastTime = now;
-        return lastBPM;
-      }
-    }
-    lastTime = now;
+//         lastTime = now;
+//         return lastBPM;
+//       }
+//     }
+//     lastTime = now;
+//   }
+  
+//   lastValue = irValue;
+//   return lastBPM; // מחזיר את הדופק האחרון הידוע
+// }
+
+int MAX30102Sensor::calculateBPM(uint32_t irValue) {
+  static uint32_t lastValues[10] = {0};
+  static int index = 0;
+  static unsigned long lastPeakTime = 0;
+  static int lastBPM = 0;
+  
+  // אם אין מגע
+  if (irValue < 5000) {
+    return 0;
   }
   
-  lastValue = irValue;
-  return lastBPM; // מחזיר את הדופק האחרון הידוע
+  // שמור ערך
+  lastValues[index] = irValue;
+  index = (index + 1) % 10;
+  
+  // חישוב ממוצע של 10 ערכים אחרונים
+  uint32_t avg = 0;
+  for (int i = 0; i < 10; i++) {
+    avg += lastValues[i];
+  }
+  avg /= 10;
+  
+  // זיהוי פסגה = ערך גבוה מהממוצע ב-2%
+  if (irValue > avg * 1.02) {
+    unsigned long now = millis();
+    
+    Serial.print("💓 פסגה: ");
+    Serial.print(irValue);
+    Serial.print(", ממוצע: ");
+    Serial.print(avg);
+    
+    // אם יש פסגה קודמת
+    if (lastPeakTime > 0) {
+      unsigned long timeDiff = now - lastPeakTime;
+      Serial.print(", זמן: ");
+      Serial.print(timeDiff);
+      Serial.print("ms");
+      
+      // בטווח הגיוני לדופק (400-1500ms)
+      if (timeDiff >= 400 && timeDiff <= 1500) {
+        int bpm = 60000 / timeDiff;
+        Serial.print(" -> BPM: ");
+        Serial.println(bpm);
+        
+        lastBPM = bpm;
+        lastPeakTime = now;
+        return bpm;
+      } else {
+        Serial.println(" (זמן לא בטווח)");
+      }
+    } else {
+      Serial.println(" (פסגה ראשונה)");
+    }
+    
+    lastPeakTime = now;
+  }
+  
+  return lastBPM;
 }
+
+// 🔥 גרסה אלטרנטיבית - עוד יותר פשוטה
+// int MAX30102Sensor::calculateBPMSimple(uint32_t irValue) {
+//   static uint32_t values[10] = {0};
+//   static int index = 0;
+//   static unsigned long lastPeak = 0;
+//   static int lastBPM = 0;
+  
+//   // שמור 10 ערכים אחרונים
+//   values[index] = irValue;
+//   index = (index + 1) % 10;
+  
+//   // רק אם יש מגע חזק
+//   if (irValue < 15000) {
+//     return 0;
+//   }
+  
+//   // חפש פסגות: ערך גבוה מהסביבה
+//   bool isPeak = true;
+//   for (int i = 1; i < 10; i++) {
+//     int idx = (index - i + 10) % 10;
+//     if (values[idx] >= irValue) {
+//       isPeak = false;
+//       break;
+//     }
+//   }
+  
+//   if (isPeak) {
+//     unsigned long now = millis();
+//     Serial.print("💓 פסגה: ");
+//     Serial.print(irValue);
+    
+//     if (lastPeak > 0 && now - lastPeak > 400 && now - lastPeak < 1500) {
+//       int bpm = 60000 / (now - lastPeak);
+//       if (bpm > 50 && bpm < 150) {
+//         Serial.print(" -> BPM: ");
+//         Serial.println(bpm);
+//         lastBPM = bpm;
+//         lastPeak = now;
+//         return bpm;
+//       }
+//     }
+//     lastPeak = now;
+//     Serial.println();
+//   }
+  
+//   return lastBPM;
+// }
 
 bool MAX30102Sensor::dataIsChanging() {
   return unchangedCount < 10;

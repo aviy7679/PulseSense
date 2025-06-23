@@ -4,6 +4,7 @@
 BLEHandler* globalBLEHandler = nullptr;
 
 // Simple callbacks
+//אירועים של החיבור הכללי של האפליקציה למכשיר
 class ServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       if (globalBLEHandler) {
@@ -14,18 +15,20 @@ class ServerCallbacks: public BLEServerCallbacks {
     void onDisconnect(BLEServer* pServer) {
       Serial.println("📱 אפליקציה התנתקה");
       delay(500);
+      //הפיכת המכשיר לזמין להתחברות
       pServer->startAdvertising();
       Serial.println("⏳ מחכה לחיבור חדש...");
     }
 };
 
+//אירועים של כתיבה למאפיין-משמש לפקודות
 class CharacteristicCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
       if (globalBLEHandler) {
         String value = pCharacteristic->getValue().c_str();
         if (value.length() > 0) {
           Serial.println("📱 פקודה התקבלה: " + value);
-          // כאן נשמור את הפקודה ב-globalBLEHandler
+          globalBLEHandler->receivedCommand = value;
         }
       }
     }
@@ -72,9 +75,12 @@ bool BLEHandler::begin() {
   // התחלת השירות
   pService->start();
   
+  //אוביקט שמנהל את השירות
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
+  //זמין, אבל לא נותן מידע נוסף ע"ע לחיסכון באנרגיה
   pAdvertising->setScanResponse(false);
+  //מוותר על קביעת קצב הנתונים
   pAdvertising->setMinPreferred(0x0);
   BLEDevice::startAdvertising();
   
@@ -101,14 +107,14 @@ void BLEHandler::sendData(float motion, int pulse, String status, float temperat
   
   if (temperature != -999) {
     message += "\"temperature\":" + String(temperature, 1) + ",";
-    message += "\"temp_status\":\"" + String(temperature >= 35.0 && temperature <= 42.0 ? "גוף" : "סביבה") + "\",";  
+    message += "\"temp_status\":\"" + String(isBodyTemperature() ? "גוף" : "סביבה") + "\",";  
   }
   
   message += "\"time\":" + String(millis());
   message += "}";
   
-  pCharacteristic->setValue(message.c_str());
-  pCharacteristic->notify();
+  pCharacteristic->setValue(message.c_str()); //מחייב char*
+  pCharacteristic->notify(); //שליחת המידע לאפליקציה
   
   Serial.println("📤 נשלח: " + message);
 }

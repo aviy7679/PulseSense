@@ -1,20 +1,20 @@
-#include "TemperatureSensor.h"
+#include "MAX30205Sensor.h"
 
-TemperatureSensor::TemperatureSensor() {
+MAX30205Sensor::MAX30205Sensor() {
   calibrationOffset = 55.0; // ערך ברירת מחדל
 }
 
-bool TemperatureSensor::begin(int sda, int scl) {
-  Wire.begin(sda, scl);
-  Wire.setClock(100000);
-  delay(100);
+bool MAX30205Sensor::begin(int sda, int scl) {
+  // Wire.begin(sda, scl);
+  // Wire.setClock(100000);
+  // delay(100);
   
   // בדיקת חיבור
-  Wire.beginTransmission(AM057_ADDRESS);
+  Wire.beginTransmission(MAX30205_ADDRESS);
   return (Wire.endTransmission() == 0);
 }
 
-float TemperatureSensor::readTemperature() {
+float MAX30205Sensor::readTemperature() {
   float rawTemp = readRawTemperature();
   if (rawTemp == -999.0) {
     return -999.0; // שגיאה
@@ -23,14 +23,14 @@ float TemperatureSensor::readTemperature() {
   return rawTemp + calibrationOffset;
 }
 
-float TemperatureSensor::readRawTemperature() {
-  Wire.beginTransmission(AM057_ADDRESS);
+float MAX30205Sensor::readRawTemperature() {
+  Wire.beginTransmission(MAX30205_ADDRESS);
   Wire.write(0x00);
   if (Wire.endTransmission(false) != 0) {
     return -999.0;
   }
   
-  if (Wire.requestFrom(AM057_ADDRESS, 2) != 2) {
+  if (Wire.requestFrom(MAX30205_ADDRESS, 2) != 2) {
     return -999.0;
   }
   
@@ -44,7 +44,7 @@ float TemperatureSensor::readRawTemperature() {
   return temperature;
 }
 
-String TemperatureSensor::evaluateTemperature(float temp) {
+String MAX30205Sensor::evaluateTemperature(float temp) {
   if (temp == -999.0) {
     return "שגיאה בקריאה";
   }
@@ -60,7 +60,7 @@ String TemperatureSensor::evaluateTemperature(float temp) {
   } else if (temp < 36.1 && temp >= 35.0) {
     return "טמפרטורה נמוכה מהרגיל";
   } else if (temp < 35.0 && temp >= 25.0) {
-    return "לא במגע - הצמד את החיישן למצח";
+    return "לא במגע - הצמד את החיישן ";
   } else if (temp < 25.0) {
     return "טמפרטורת חדר - החיישן לא במגע";
   } else {
@@ -68,14 +68,14 @@ String TemperatureSensor::evaluateTemperature(float temp) {
   }
 }
 
-bool TemperatureSensor::isBodyTemperature(float temp) {
+bool MAX30205Sensor::isBodyTemperature(float temp) {
   return (temp >= 35.0 && temp <= 42.0);
 }
 
-void TemperatureSensor::setCalibration(float offset) {
+void MAX30205Sensor::setCalibration(float offset) {
   calibrationOffset = offset;
 }
 
-float TemperatureSensor::getCalibrationOffset() {
+float MAX30205Sensor::getCalibrationOffset() {
   return calibrationOffset;
 }

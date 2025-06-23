@@ -14,6 +14,10 @@ public:
     // אתחול הפין (קוראים ב-setup)
     void begin();
     
+    // פונקציה שמעדכנת את הרטט
+    void update(); 
+
+    
     // רטט בסיסי לזמן מסוים (מילישניות)
     void vibrate(int duration_ms);
     

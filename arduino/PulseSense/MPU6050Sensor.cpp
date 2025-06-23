@@ -31,21 +31,11 @@ float MPU6050Sensor::getTemperature(){
 }
 
 bool MPU6050Sensor::detectFall(float threshold) {
-  float totalAccel = sqrt(
-    accel.acceleration.x * accel.acceleration.x +
-    accel.acceleration.y * accel.acceleration.y +
-    accel.acceleration.z * accel.acceleration.z
-  );
-
-  return totalAccel > threshold;
+  return getMotionMagnitude() > threshold;
 }
 
 bool MPU6050Sensor::detectNoMotion(unsigned long duration) {
-  float totalAccel = sqrt(
-    accel.acceleration.x * accel.acceleration.x +
-    accel.acceleration.y * accel.acceleration.y +
-    accel.acceleration.z * accel.acceleration.z
-  );
+  float totalAccel = getMotionMagnitude();
 
   if (totalAccel > 10) {
     lastMovementTime = millis();
@@ -55,7 +45,9 @@ bool MPU6050Sensor::detectNoMotion(unsigned long duration) {
   return (millis() - lastMovementTime) > duration;
 }
 
+
 float MPU6050Sensor::getMotionMagnitude() {
+  //בעצם חישוב אורך וקטור
   return sqrt(
     accel.acceleration.x * accel.acceleration.x +
     accel.acceleration.y * accel.acceleration.y +

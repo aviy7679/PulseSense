@@ -4,9 +4,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-class TemperatureSensor {
+class MAX30205Sensor {
   public:
-    TemperatureSensor();
+    MAX30205Sensor();
     bool begin(int sda = 21, int scl = 22);
     float readTemperature();
     String evaluateTemperature(float temp);
@@ -17,7 +17,7 @@ class TemperatureSensor {
     float getCalibrationOffset();
     
   private:
-    static const uint8_t AM057_ADDRESS = 0x48;
+    static const uint8_t MAX30205_ADDRESS = 0x48;
     float calibrationOffset;
     
     float readRawTemperature();

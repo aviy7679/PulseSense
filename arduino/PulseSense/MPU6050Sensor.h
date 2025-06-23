@@ -18,6 +18,7 @@ class MPU6050Sensor {
 
   private:
     Adafruit_MPU6050 mpu;
+    // מבנה נתונים שמייצג אירוע קריאה מחיישן
     sensors_event_t accel, gyro, temp;
     unsigned long lastMovementTime = 0;
 };
